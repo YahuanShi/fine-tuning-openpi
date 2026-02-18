@@ -13,5 +13,5 @@ sudo sed -i -e '/experimental/ s/^#//g' /etc/apt/sources.list.d/nvidia-container
 sudo apt-get update
 sudo apt-get install -y nvidia-container-toolkit
 
-sudo nvidia-ctk runtime configure --runtime=docker
+sudo nvidia-ctk runtime configure --runtime=docker --set-as-default
 sudo systemctl restart docker
