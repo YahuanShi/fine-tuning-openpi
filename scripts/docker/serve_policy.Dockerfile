@@ -13,7 +13,37 @@ COPY --from=ghcr.io/astral-sh/uv:0.5.1 /uv /uvx /bin/
 WORKDIR /app
 
 # Needed because LeRobot uses git-lfs.
-RUN apt-get update && apt-get install -y git git-lfs linux-headers-generic build-essential clang
+# Install build dependencies
+RUN apt-get update && apt-get install -y \
+    git \
+    git-lfs \
+    linux-headers-generic \
+    build-essential \
+    clang \
+    pkg-config \
+    cython3 \
+    wget \
+    yasm \
+    nasm \
+    && rm -rf /var/lib/apt/lists/*
+
+# Build and install FFmpeg 7 from source
+RUN cd /tmp && \
+    wget -q https://ffmpeg.org/releases/ffmpeg-7.0.2.tar.xz && \
+    tar xf ffmpeg-7.0.2.tar.xz && \
+    cd ffmpeg-7.0.2 && \
+    ./configure \
+        --enable-shared \
+        --disable-static \
+        --enable-gpl \
+        --disable-doc \
+        --disable-ffplay \
+        --disable-x86asm && \
+    make -j$(nproc) && \
+    make install && \
+    ldconfig && \
+    cd / && \
+    rm -rf /tmp/ffmpeg-7.0.2*
 
 # Copy from the cache instead of linking since it's a mounted volume
 ENV UV_LINK_MODE=copy
