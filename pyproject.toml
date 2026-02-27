@@ -75,7 +75,13 @@ members = ["packages/*"]
 [tool.ruff]
 line-length = 120
 target-version = "py311"
-extend-exclude = ["docker", "third_party", "src/openpi/models_pytorch/transformers_replace/*"]
+extend-exclude = [
+    "docker",
+    "third_party",
+    "src/openpi/models_pytorch/transformers_replace/*",
+    # Vendored third-party Feetech servo SDK — do not lint
+    "teleoperation/uarm/scripts/Uarm_teleop/Feetech_servo/scservo_sdk",
+]
 
 [tool.ruff.lint]
 # https://docs.astral.sh/ruff/rules/
@@ -123,6 +129,12 @@ ignore = [
 unfixable = [
     "B905", # Fix defaults to strict=False, which is not what we want.
 ]
+
+[tool.ruff.lint.per-file-ignores]
+# Feetech utility scripts use `from scservo_sdk import *` (SDK convention)
+"teleoperation/uarm/scripts/Uarm_teleop/Feetech_servo/feetech_servo_reader.py" = ["F403", "F405"]
+"teleoperation/uarm/scripts/Uarm_teleop/Feetech_servo/feetech_servo_changeid.py" = ["F403", "F405"]
+"teleoperation/uarm/scripts/Uarm_teleop/Feetech_servo/feetech_servo_zero.py" = ["F403", "F405"]
 
 [tool.ruff.lint.isort]
 force-single-line = true
