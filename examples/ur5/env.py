@@ -24,34 +24,34 @@ import time
 
 import cv2
 import numpy as np
+from openpi_client.runtime import environment as _environment
 import pyrealsense2 as rs
 import rtde_control
 import rtde_receive
 import serial
-from openpi_client.runtime import environment as _environment
 from typing_extensions import override
 
 log = logging.getLogger(__name__)
 
 # ══════════════════════════════ Configuration ══════════════════════════════
 
-UR5_IP            = "192.168.1.100"
-GRIPPER_PORT      = "/dev/ttyACM0"
-GRIPPER_BAUDRATE  = 115200
-GRIPPER_MAX_MM    = 30.0
-GRIPPER_OPEN_THRESH_MM = 5.0   # below this → considered closed
+UR5_IP = "192.168.1.100"
+GRIPPER_PORT = "/dev/ttyACM0"
+GRIPPER_BAUDRATE = 115200
+GRIPPER_MAX_MM = 30.0
+GRIPPER_OPEN_THRESH_MM = 5.0  # below this → considered closed
 
-CAM_SERIAL_BASE   = "105422060444"   # D415 exterior
-CAM_SERIAL_WRIST  = "352122273671"   # D405 wrist
-IMAGE_SIZE        = 224
+CAM_SERIAL_BASE = "105422060444"  # D415 exterior
+CAM_SERIAL_WRIST = "352122273671"  # D405 wrist
+IMAGE_SIZE = 224
 
-HOME_DEG  = [0.0, -90.0, 90.0, -90.0, -90.0, 0.0]
-HOME_RAD  = np.radians(HOME_DEG)
+HOME_DEG = [0.0, -90.0, 90.0, -90.0, -90.0, 0.0]
+HOME_RAD = np.radians(HOME_DEG)
 
-SERVO_J_TIME      = 0.016   # s per step (~60 Hz)
+SERVO_J_TIME = 0.016  # s per step (~60 Hz)
 SERVO_J_LOOKAHEAD = 0.08
-SERVO_J_GAIN      = 300
-MAX_JOINT_VEL     = 1.0     # rad/s safety clamp
+SERVO_J_GAIN = 300
+MAX_JOINT_VEL = 1.0  # rad/s safety clamp
 
 
 # ══════════════════════════════ Gripper ══════════════════════════════
@@ -63,15 +63,15 @@ class WeissCRGGripper:
     PDIN_PER_MM = 163.17
 
     def __init__(self, port: str = GRIPPER_PORT, baudrate: int = GRIPPER_BAUDRATE):
-        self._lock       = threading.Lock()
-        self._ser        = serial.Serial(port=port, baudrate=baudrate, timeout=2.0)
+        self._lock = threading.Lock()
+        self._ser = serial.Serial(port=port, baudrate=baudrate, timeout=2.0)
         self._position_mm = 0.0
         self._closed_pdin = 150
         log.info(f"[Gripper] Opened {port} @ {baudrate} baud")
 
     def _parse_pdin(self, line: str):
         try:
-            data = line[7:].split("]")[0].split(",")
+            data = line[7:].split("]", maxsplit=1)[0].split(",")
             raw = (int(data[0], 16) << 8) | int(data[1], 16)
             self._position_mm = max(0.0, (raw - self._closed_pdin) / self.PDIN_PER_MM)
         except Exception:
@@ -173,7 +173,7 @@ def _center_crop_resize(bgr: np.ndarray, size: int = IMAGE_SIZE) -> np.ndarray:
     h, w = bgr.shape[:2]
     s = min(h, w)
     y0, x0 = (h - s) // 2, (w - s) // 2
-    crop = bgr[y0:y0 + s, x0:x0 + s]
+    crop = bgr[y0 : y0 + s, x0 : x0 + s]
     resized = cv2.resize(crop, (size, size), interpolation=cv2.INTER_LINEAR)
     return cv2.cvtColor(resized, cv2.COLOR_BGR2RGB)
 
@@ -208,9 +208,9 @@ class UR5Environment(_environment.Environment):
         prompt: str = "perform the task",
         control_hz: float = 10.0,
     ):
-        self._prompt      = prompt
-        self._control_hz  = control_hz
-        self._dt          = 1.0 / control_hz
+        self._prompt = prompt
+        self._control_hz = control_hz
+        self._dt = 1.0 / control_hz
 
         # ── UR5 RTDE ─────────────────────────────────────────────
         log.info(f"[UR5] Connecting RTDE to {UR5_IP}...")
@@ -225,7 +225,7 @@ class UR5Environment(_environment.Environment):
 
         # ── Cameras ───────────────────────────────────────────────
         log.info("[UR5] Starting cameras...")
-        self._pipe_base  = _start_pipeline(CAM_SERIAL_BASE)
+        self._pipe_base = _start_pipeline(CAM_SERIAL_BASE)
         self._pipe_wrist = _start_pipeline(CAM_SERIAL_WRIST)
 
         # ── state ─────────────────────────────────────────────────
@@ -250,22 +250,22 @@ class UR5Environment(_environment.Environment):
     @override
     def get_observation(self) -> dict:
         # Joint state
-        q_rad   = np.array(self._rtde_r.getActualQ(), dtype=np.float32)
-        width   = self._gripper.get_width()
+        q_rad = np.array(self._rtde_r.getActualQ(), dtype=np.float32)
+        width = self._gripper.get_width()
         gripper = np.array([0.0 if width > GRIPPER_OPEN_THRESH_MM else 1.0], dtype=np.float32)
 
         # Images
-        base_bgr  = self._grab_frame(self._pipe_base)
+        base_bgr = self._grab_frame(self._pipe_base)
         wrist_bgr = self._grab_frame(self._pipe_wrist)
-        base_rgb  = _center_crop_resize(base_bgr)
+        base_rgb = _center_crop_resize(base_bgr)
         wrist_rgb = _center_crop_resize(wrist_bgr)
 
         return {
-            "joints":    q_rad,
-            "gripper":   gripper,
-            "base_rgb":  base_rgb,
+            "joints": q_rad,
+            "gripper": gripper,
+            "base_rgb": base_rgb,
             "wrist_rgb": wrist_rgb,
-            "prompt":    self._prompt,
+            "prompt": self._prompt,
         }
 
     @override
@@ -274,9 +274,9 @@ class UR5Environment(_environment.Environment):
 
         # ── joints: velocity-limited servoJ ──────────────────────
         target_rad = acts[:6]
-        max_step   = MAX_JOINT_VEL * self._dt
-        delta      = target_rad - self._last_cmd_rad
-        cmd_rad    = self._last_cmd_rad + np.clip(delta, -max_step, max_step)
+        max_step = MAX_JOINT_VEL * self._dt
+        delta = target_rad - self._last_cmd_rad
+        cmd_rad = self._last_cmd_rad + np.clip(delta, -max_step, max_step)
         self._last_cmd_rad = cmd_rad.copy()
 
         try:
@@ -322,7 +322,7 @@ class UR5Environment(_environment.Environment):
     @staticmethod
     def _grab_frame(pipeline: rs.pipeline) -> np.ndarray:
         frames = pipeline.wait_for_frames(timeout_ms=2000)
-        color  = frames.get_color_frame()
+        color = frames.get_color_frame()
         if not color:
             raise RuntimeError("No color frame from camera")
         return np.asanyarray(color.get_data())

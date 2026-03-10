@@ -22,12 +22,11 @@ Usage:
 import dataclasses
 import logging
 
-import tyro
-
 from openpi_client import action_chunk_broker
 from openpi_client import websocket_client_policy as _ws_policy
 from openpi_client.runtime import runtime as _runtime
 from openpi_client.runtime.agents import policy_agent as _policy_agent
+import tyro
 
 from examples.ur5 import env as _env
 
@@ -35,8 +34,8 @@ from examples.ur5 import env as _env
 @dataclasses.dataclass
 class Args:
     # Policy server address
-    host: str  = "0.0.0.0"
-    port: int  = 8000
+    host: str = "0.0.0.0"
+    port: int = 8000
 
     # Task prompt sent to the model at every step
     prompt: str = "perform the task"
@@ -46,8 +45,8 @@ class Args:
     action_horizon: int = 10
 
     # Episode settings
-    num_episodes:      int = 1
-    max_episode_steps: int = 200   # ~20 s at 10 Hz
+    num_episodes: int = 1
+    max_episode_steps: int = 200  # ~20 s at 10 Hz
 
     # Robot control rate (Hz). Must be ≤ your policy server throughput.
     control_hz: float = 10.0
