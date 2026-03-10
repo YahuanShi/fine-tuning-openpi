@@ -20,6 +20,7 @@ import openpi.models.tokenizer as _tokenizer
 import openpi.policies.aloha_policy as aloha_policy
 import openpi.policies.droid_policy as droid_policy
 import openpi.policies.libero_policy as libero_policy
+import openpi.policies.ur5_policy as ur5_policy
 import openpi.shared.download as _download
 import openpi.shared.normalize as _normalize
 import openpi.training.droid_rlds_dataset as droid_rlds_dataset
@@ -347,6 +348,58 @@ class LeRobotLiberoDataConfig(DataConfigFactory):
         model_transforms = ModelTransformFactory()(model_config)
 
         # We return all data transforms for training and inference. No need to change anything here.
+        return dataclasses.replace(
+            self.create_base_config(assets_dirs, model_config),
+            repack_transforms=repack_transform,
+            data_transforms=data_transforms,
+            model_transforms=model_transforms,
+        )
+
+
+@dataclasses.dataclass(frozen=True)
+class LeRobotUR5DataConfig(DataConfigFactory):
+    """
+    Data config for fine-tuning on UR5 teleoperation datasets collected with
+    teleoperation/data_collection/episode_recorder.py and converted with
+    examples/ur5/convert_ur5_data_to_lerobot.py.
+
+    LeRobot feature keys: base_rgb, wrist_rgb, joints (6,), gripper (1,), actions (7,).
+    Actions are stored as absolute joint angles in radians + gripper [0=open, 1=closed].
+    The first 6 action dims are converted to delta actions; the gripper remains absolute.
+    """
+
+    @override
+    def create(self, assets_dirs: pathlib.Path, model_config: _model.BaseModelConfig) -> DataConfig:
+        repack_transform = _transforms.Group(
+            inputs=[
+                _transforms.RepackTransform(
+                    {
+                        "base_rgb": "base_rgb",
+                        "wrist_rgb": "wrist_rgb",
+                        "joints": "joints",
+                        "gripper": "gripper",
+                        "actions": "actions",
+                        "prompt": "prompt",
+                    }
+                )
+            ]
+        )
+
+        data_transforms = _transforms.Group(
+            inputs=[ur5_policy.UR5Inputs(model_type=model_config.model_type)],
+            outputs=[ur5_policy.UR5Outputs()],
+        )
+
+        # UR5 records absolute joint angles → convert joints to delta actions.
+        # Gripper (dim 6) remains absolute.
+        delta_action_mask = _transforms.make_bool_mask(6, -1)
+        data_transforms = data_transforms.push(
+            inputs=[_transforms.DeltaActions(delta_action_mask)],
+            outputs=[_transforms.AbsoluteActions(delta_action_mask)],
+        )
+
+        model_transforms = ModelTransformFactory()(model_config)
+
         return dataclasses.replace(
             self.create_base_config(assets_dirs, model_config),
             repack_transforms=repack_transform,
@@ -929,6 +982,64 @@ _CONFIGS = [
         ),
         weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi0_base/params"),
         num_train_steps=20_000,
+    ),
+    #
+    # Fine-tuning UR5 configs.
+    #
+    TrainConfig(
+        name="pi0_ur5",
+        model=pi0_config.Pi0Config(),
+        data=LeRobotUR5DataConfig(
+            repo_id="your_hf_username/ur5_dataset",
+            assets=AssetsConfig(
+                assets_dir="gs://openpi-assets/checkpoints/pi0_base/assets",
+                asset_id="ur5e",
+            ),
+            base_config=DataConfig(prompt_from_task=True),
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi0_base/params"),
+        num_train_steps=30_000,
+    ),
+    TrainConfig(
+        name="pi05_ur5",
+        model=pi0_config.Pi0Config(pi05=True, action_horizon=10, discrete_state_input=False),
+        data=LeRobotUR5DataConfig(
+            repo_id="your_hf_username/ur5_dataset",
+            assets=AssetsConfig(
+                assets_dir="gs://openpi-assets/checkpoints/pi05_base/assets",
+                asset_id="ur5e",
+            ),
+            base_config=DataConfig(prompt_from_task=True),
+        ),
+        batch_size=256,
+        lr_schedule=_optimizer.CosineDecaySchedule(
+            warmup_steps=10_000,
+            peak_lr=5e-5,
+            decay_steps=1_000_000,
+            decay_lr=5e-5,
+        ),
+        optimizer=_optimizer.AdamW(clip_gradient_norm=1.0),
+        ema_decay=0.999,
+        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi05_base/params"),
+        num_train_steps=30_000,
+    ),
+    TrainConfig(
+        name="pi0_ur5_lora",
+        model=pi0_config.Pi0Config(paligemma_variant="gemma_2b_lora", action_expert_variant="gemma_300m_lora"),
+        data=LeRobotUR5DataConfig(
+            repo_id="your_hf_username/ur5_dataset",
+            assets=AssetsConfig(
+                assets_dir="gs://openpi-assets/checkpoints/pi0_base/assets",
+                asset_id="ur5e",
+            ),
+            base_config=DataConfig(prompt_from_task=True),
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi0_base/params"),
+        num_train_steps=30_000,
+        freeze_filter=pi0_config.Pi0Config(
+            paligemma_variant="gemma_2b_lora", action_expert_variant="gemma_300m_lora"
+        ).get_freeze_filter(),
+        ema_decay=None,
     ),
     #
     # Debugging configs.
