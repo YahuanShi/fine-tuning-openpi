@@ -9,7 +9,7 @@ Prerequisites:
        (or pi05_ur5 / pi0_ur5_lora depending on which checkpoint you trained)
 
     2. Ensure all hardware is connected:
-           UR5 @ 192.168.1.100 (Ethernet)
+           UR5 @ 10.0.0.1 (Ethernet)
            Weiss CRG gripper @ /dev/ttyACM0
            RealSense D415 exterior (serial 105422060444)
            RealSense D405 wrist    (serial 352122273671)
