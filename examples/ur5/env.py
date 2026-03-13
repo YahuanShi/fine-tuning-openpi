@@ -286,11 +286,11 @@ class UR5Environment(_environment.Environment):
         try:
             self._rtde_c.servoJ(
                 cmd_rad.tolist(),
-                velocity=0,
-                acceleration=0,
-                time=SERVO_J_TIME,
-                lookahead_time=SERVO_J_LOOKAHEAD,
-                gain=SERVO_J_GAIN,
+                0,
+                0,
+                SERVO_J_TIME,
+                SERVO_J_LOOKAHEAD,
+                SERVO_J_GAIN,
             )
         except Exception as e:
             log.warning(f"[UR5] servoJ error: {e}")
