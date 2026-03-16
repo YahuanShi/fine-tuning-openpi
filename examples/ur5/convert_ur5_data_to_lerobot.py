@@ -59,7 +59,7 @@ from lerobot.common.datasets.lerobot_dataset import LeRobotDataset  # noqa: E402
 import numpy as np  # noqa: E402
 
 # Recording frequency used by episode_recorder.py (change if you used --hz)
-DEFAULT_FPS = 15
+DEFAULT_FPS = 10
 
 
 def build_parser() -> argparse.ArgumentParser:
