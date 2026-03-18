@@ -60,9 +60,10 @@ TEXT_DIM  = (100, 100, 100)
 CURSOR    = ( 58, 190, 255)
 PROG_FG   = ( 58, 190, 255)
 PROG_BG   = ( 30,  30,  30)
-PLAY_COL  = ( 80, 210,  90)
-PAUSE_COL = (230, 170,  50)
-FAST_COL  = ( 80, 180, 255)
+PLAY_COL   = ( 80, 210,  90)
+PAUSE_COL  = (230, 170,  50)
+FAST_COL   = ( 80, 180, 255)
+DELETE_COL = ( 50,  50, 220)   # red (BGR)
 
 # joint colors (BGR)
 JOINT_BGR = [
@@ -131,12 +132,16 @@ def find_episodes(path: str) -> tuple[list[str], int]:
 
 def load_episode(path: str) -> dict:
     with h5py.File(path, "r") as f:
-        return {
+        ep = {
             "qpos":     f["observations/qpos"][:],
             "action":   f["action"][:],
             "exterior": f["observations/images/exterior_image_1_left"][:],
             "wrist":    f["observations/images/wrist_image_left"][:],
         }
+        imgs = f["observations/images"]
+        if "front_image_1" in imgs:
+            ep["front"] = imgs["front_image_1"][:]
+        return ep
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -162,12 +167,22 @@ def _text_size(text, scale, thickness=1):
 
 # ── header (two rows) ────────────────────────────────────────────────────────
 
-def make_header(ep_idx, n_eps, ep_name, t, T, paused, fast, canvas_w):
+def make_header(ep_idx, n_eps, ep_name, t, T, paused, fast, canvas_w,
+                confirm_delete=False):
     bar = np.full((HEADER_H, canvas_w, 3), PANEL, dtype=np.uint8)
     bar[-1, :] = BORDER
 
     row1_y = 22
     row2_y = 44
+
+    if confirm_delete:
+        # full-width red warning banner
+        bar[:, :] = (30, 20, 20)
+        bar[-1, :] = DELETE_COL
+        warn = "DELETE  %s  ?   Press Y to confirm  /  any other key to cancel" % ep_name
+        ww, _ = _text_size(warn, 0.52)
+        _put(bar, warn, max(8, (canvas_w - ww) // 2), row1_y + 4, 0.52, DELETE_COL)
+        return bar
 
     # ── ROW 1 ──
     # status dot + text
@@ -198,7 +213,8 @@ def make_header(ep_idx, n_eps, ep_name, t, T, paused, fast, canvas_w):
     _put(bar, t_txt, canvas_w - tw - 20, row1_y, 0.50, TEXT_SEC)
 
     # ── ROW 2: key hints ──
-    hints = "SPC:pause  Left/Right:+-10  Up/Down:episode  f:2x speed  r:reset  q:quit  |  mouse: drag scrub"
+    hints = ("SPC:pause  Left/Right:+-10  Up/Down:episode  f:2x  r:reset  "
+             "d:delete episode  q:quit  |  mouse: drag scrub")
     _put(bar, hints, 18, row2_y, 0.38, TEXT_DIM, shadow=False)
 
     return bar
@@ -206,28 +222,28 @@ def make_header(ep_idx, n_eps, ep_name, t, T, paused, fast, canvas_w):
 
 # ── video row ─────────────────────────────────────────────────────────────────
 
-def make_video_row(ext_rgb, wrist_rgb, disp_w, disp_h, sep_w=4):
-    # use INTER_LINEAR for upscale, INTER_AREA for downscale (cleaner result)
+def make_video_row(cam_frames: list, disp_w: int, disp_h: int, sep_w: int = 4):
+    """cam_frames: list of (rgb_array, label_str) — 2 or 3 cameras."""
     interp = cv2.INTER_LINEAR
-    ext_bgr   = cv2.resize(cv2.cvtColor(ext_rgb,   cv2.COLOR_RGB2BGR),
-                           (disp_w, disp_h), interpolation=interp)
-    wrist_bgr = cv2.resize(cv2.cvtColor(wrist_rgb, cv2.COLOR_RGB2BGR),
-                           (disp_w, disp_h), interpolation=interp)
+    sep    = np.full((disp_h, sep_w, 3), BG, dtype=np.uint8)
+    panels = []
 
-    for frame, label in [(ext_bgr, "EXTERIOR"), (wrist_bgr, "WRIST")]:
+    for i, (rgb, label) in enumerate(cam_frames):
+        bgr = cv2.resize(cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR),
+                         (disp_w, disp_h), interpolation=interp)
         font_scale = 0.55
         pad_x, pad_y = 10, 6
         tw, th = _text_size(label, font_scale)
         badge_w = tw + pad_x * 2
         badge_h = th + pad_y * 2 + 4
-
-        # dark badge background
-        roi = frame[:badge_h, :badge_w]
+        roi = bgr[:badge_h, :badge_w]
         roi[:] = (roi.astype(np.int16) * 3 // 10).clip(0, 255).astype(np.uint8)
-        _put(frame, label, pad_x, pad_y + th + 2, font_scale, (220, 220, 220))
+        _put(bgr, label, pad_x, pad_y + th + 2, font_scale, (220, 220, 220))
+        panels.append(bgr)
+        if i < len(cam_frames) - 1:
+            panels.append(sep)
 
-    sep = np.full((disp_h, sep_w, 3), BG, dtype=np.uint8)
-    return np.concatenate([ext_bgr, sep, wrist_bgr], axis=1)
+    return np.concatenate(panels, axis=1)
 
 
 # ── progress bar (aligned with trajectory plot_x0..plot_x1) ─────────────────
@@ -430,6 +446,7 @@ def main():
 
         exterior = data["exterior"]
         wrist    = data["wrist"]
+        front    = data.get("front")
         qpos     = data["qpos"]
         T        = len(exterior)
         n_joints = qpos.shape[1]
@@ -437,7 +454,9 @@ def main():
         src_h, src_w = exterior.shape[1], exterior.shape[2]
         disp_w   = int(src_w * args.scale)
         disp_h   = int(src_h * args.scale)
-        canvas_w = disp_w * 2 + 4
+        num_cams = 3 if front is not None else 2
+        sep_w    = 4
+        canvas_w = disp_w * num_cams + sep_w * (num_cams - 1)
 
         print("  Building trajectory strips ...")
         strips_bg, plot_x0, plot_x1, strip_y_offsets = \
@@ -464,9 +483,10 @@ def main():
         mouse.reset()
         cv2.resizeWindow(win_name, canvas_w, total_h)
 
-        t      = 0
-        paused = False
-        nav    = None
+        t              = 0
+        paused         = False
+        nav            = None
+        confirm_delete = False
 
         while nav is None and running:
             # mouse scrub
@@ -478,8 +498,12 @@ def main():
             # ── render ───────────────────────────────────────────────────
             header = make_header(ep_idx, len(episodes),
                                  os.path.basename(path),
-                                 t, T, paused, fast_mode, canvas_w)
-            video  = make_video_row(exterior[t], wrist[t], disp_w, disp_h)
+                                 t, T, paused, fast_mode, canvas_w,
+                                 confirm_delete=confirm_delete)
+            cam_frames = [(exterior[t], "EXTERIOR"), (wrist[t], "WRIST")]
+            if front is not None:
+                cam_frames.append((front[t], "FRONT"))
+            video  = make_video_row(cam_frames, disp_w, disp_h)
             prog   = make_progress(t, T, canvas_w, plot_x0, plot_x1)
 
             strips = strips_bg.copy()
@@ -490,11 +514,27 @@ def main():
             cv2.imshow(win_name, canvas)
 
             # ── input ────────────────────────────────────────────────────
-            delay = 1 if (paused or mouse.dragging) else (
+            delay = 1 if (paused or mouse.dragging or confirm_delete) else (
                 base_delay // 2 if fast_mode else base_delay)
-            key_raw = cv2.waitKeyEx(delay)      # waitKeyEx for full key codes
+            key_raw = cv2.waitKeyEx(delay)
             k       = key_raw & 0xFF
             arrow   = decode_arrow(key_raw)
+
+            if confirm_delete:
+                if k == ord("y"):
+                    print("  Deleting %s ..." % os.path.basename(path))
+                    os.remove(path)
+                    episodes.pop(ep_idx)
+                    if not episodes:
+                        print("No episodes left.")
+                        running = False
+                    else:
+                        ep_idx = min(ep_idx, len(episodes) - 1)
+                        nav = 0          # reload at same index
+                else:
+                    print("  Delete cancelled.")
+                confirm_delete = False
+                continue
 
             if   k == ord("q") or k == 27:       running = False
             elif k == ord(" "):                   paused = not paused
@@ -502,6 +542,9 @@ def main():
             elif k == ord("f"):                   fast_mode = not fast_mode
             elif k == ord("n"):                   nav = +1
             elif k == ord("p"):                   nav = -1
+            elif k == ord("d"):
+                confirm_delete = True
+                paused = True
             elif arrow == "left":                 t = max(0, t - 10)
             elif arrow == "right":                t = min(T - 1, t + 10)
             elif arrow == "up":                   nav = -1
@@ -513,7 +556,10 @@ def main():
                 t = (t + step) % T
 
         if nav is not None:
-            ep_idx = (ep_idx + nav) % len(episodes)
+            if nav == 0:
+                pass   # stay at current ep_idx (after delete)
+            else:
+                ep_idx = (ep_idx + nav) % len(episodes)
 
     cv2.destroyAllWindows()
 

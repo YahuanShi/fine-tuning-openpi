@@ -11,8 +11,11 @@ Each `episode_N.hdf5` contains:
 |-----|-------|-------------|
 | `action` | `(T, 7)` | Joint commands (rad) |
 | `observations/qpos` | `(T, 7)` | Joint positions (rad) |
-| `observations/images/exterior_image_1_left` | `(T, 224, 224, 3)` | External camera (RGB) |
+| `observations/images/exterior_image_1_left` | `(T, 224, 224, 3)` | Exterior camera (RGB) |
 | `observations/images/wrist_image_left` | `(T, 224, 224, 3)` | Wrist camera (RGB) |
+| `observations/images/front_image_1` | `(T, 224, 224, 3)` | Front camera (RGB) — **optional**, present only in 3-camera recordings |
+
+All scripts auto-detect whether `front_image_1` is present and adapt accordingly.
 
 ---
 
@@ -20,8 +23,8 @@ Each `episode_N.hdf5` contains:
 
 ### `visualize_episode.py` — video playback viewer
 
-Plays back both camera streams side-by-side with per-joint trajectory strips
-and a scrubbing progress bar. Supports multi-episode navigation.
+Plays back all camera streams side-by-side (2 or 3 cameras, auto-detected) with
+per-joint trajectory strips and a scrubbing progress bar. Supports multi-episode navigation.
 
 ```bash
 python3 visualize_episode.py path/to/dataset_dir
@@ -35,6 +38,9 @@ python3 visualize_episode.py path/to/episode_0.hdf5 --fps 30 --scale 2.0
 | `↑` / `↓` | Previous / next episode |
 | `F` | Toggle 2× speed |
 | `R` | Restart |
+| `D` | Arm delete (pauses and shows red confirmation banner) |
+| `Y` | Confirm delete — removes file from disk, advances to next episode |
+| any other key | Cancel delete |
 | `Q` | Quit |
 
 Mouse drag on the progress bar or trajectory strips to scrub.
@@ -121,18 +127,75 @@ python3 smooth_episodes.py path/to/dataset_dir --output smoothed/ --window 9 --p
 
 ---
 
+### `drop_front_camera.py` — remove front camera stream
+
+Copies all episodes to a new directory, dropping `front_image_1` so downstream
+tools only see the exterior and wrist cameras.
+
+```bash
+python3 drop_front_camera.py path/to/raw_dir path/to/no_front_dir
+```
+
+---
+
+### `pipeline.sh` — full automated pipeline
+
+Runs all five processing steps in sequence with interactive pauses.
+See **Recommended workflow** below.
+
+```bash
+./pipeline.sh path/to/raw_dir --cuts cuts.json --out training_dataset
+```
+
+---
+
 ## Recommended workflow
+
+### Automated pipeline (recommended)
+
+```bash
+# Mark cut points interactively first (optional but recommended):
+python3 visualize_trajectory.py <raw_dir> --cuts cuts.json   # W to save
+
+# Then run the full pipeline in one command:
+./pipeline.sh <raw_dir> --cuts cuts.json --out training_dataset
+```
+
+`pipeline.sh` runs all five steps in order, pausing after each interactive step
+for confirmation before proceeding:
+
+| Step | Script | What happens |
+|------|--------|--------------|
+| 1 | `check_dataset.py` | Quality report printed; user reviews |
+| 2 | `visualize_episode.py` | Interactive playback; delete bad episodes with D+Y |
+| 3 | `drop_front_camera.py` | Copies episodes to `<raw_dir>_no_front/`, removes `front_image_1` |
+| 4 | `trim_episodes.py` | Applies per-episode cuts → `<raw_dir>_trimmed/` |
+| 5 | `smooth_episodes.py` | SG smoothing → `training_dataset/` |
+
+**Pipeline options:**
+
+```bash
+./pipeline.sh <raw_dir> \
+    --cuts   cuts.json   \   # per-episode cut file (default: cuts.json)
+    --trim   5           \   # global fallback trim per end (default: 0)
+    --window 15          \   # SG window, must be odd (default: 15)
+    --poly   3           \   # SG poly order (default: 3)
+    --out    training_dataset
+```
+
+### Manual step-by-step
 
 ```
 1. python3 check_dataset.py        <dir>              # inspect data quality
-2. python3 visualize_episode.py    <dir>              # watch video playback
+2. python3 visualize_episode.py    <dir>              # watch video; delete bad episodes
 3. python3 visualize_trajectory.py <dir> \
            --cuts cuts.json                           # mark cuts, press W to save
-4. python3 trim_episodes.py        <dir> \
+4. python3 drop_front_camera.py    <dir> no_front/    # remove front camera stream
+5. python3 trim_episodes.py        no_front/ \
            --cuts cuts.json --output trimmed/         # apply cuts
-5. python3 smooth_episodes.py      trimmed/ \
-           --output clean/                            # smooth trajectories
-6. python3 convert_ur5_data_to_lerobot.py clean/      # then train
+6. python3 smooth_episodes.py      trimmed/ \
+           --output training_dataset/                 # smooth trajectories
+7. python3 convert_ur5_data_to_lerobot.py training_dataset/   # then train
 ```
 
 ---

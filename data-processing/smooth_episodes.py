@@ -20,8 +20,8 @@ import numpy as np
 from scipy.signal import savgol_filter
 
 
-DEFAULT_WINDOW = 5   # must be odd
-DEFAULT_POLY   = 2
+DEFAULT_WINDOW = 15   # must be odd
+DEFAULT_POLY   = 3
 
 
 def smooth_array(arr: np.ndarray, window: int, poly: int) -> np.ndarray:
@@ -40,8 +40,13 @@ def smooth_episode(src: str, dst: str, window: int, poly: int) -> None:
         action   = f["action"][:]
         exterior = f["observations/images/exterior_image_1_left"][:]
         wrist    = f["observations/images/wrist_image_left"][:]
+        imgs     = f["observations/images"]
+        front    = imgs["front_image_1"][:] if "front_image_1" in imgs else None
+        attrs    = dict(f.attrs)
 
     with h5py.File(dst, "w") as f:
+        for k, v in attrs.items():
+            f.attrs[k] = v
         f.create_dataset("observations/qpos",   data=smooth_array(qpos,   window, poly),
                          compression="gzip")
         f.create_dataset("action",               data=smooth_array(action, window, poly),
@@ -50,6 +55,9 @@ def smooth_episode(src: str, dst: str, window: int, poly: int) -> None:
                          data=exterior, compression="gzip")
         f.create_dataset("observations/images/wrist_image_left",
                          data=wrist,    compression="gzip")
+        if front is not None:
+            f.create_dataset("observations/images/front_image_1",
+                             data=front, compression="gzip")
 
 
 def main():
