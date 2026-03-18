@@ -31,12 +31,18 @@ DEFAULT_SPIKE_THRESH = 0.15   # rad
 DEFAULT_SAME_THRESH  = 1e-4
 
 
+_IMAGE_KEYS = ["exterior_image_1_left", "wrist_image_left", "front_image_1"]
+
+
 def check_episode(path: str, min_steps: int, spike_thresh: float,
                   same_thresh: float) -> dict:
     issues = {}
     with h5py.File(path, "r") as f:
         qpos   = f["observations/qpos"][:]
         action = f["action"][:]
+        imgs   = f["observations/images"] if "observations/images" in f else {}
+        num_cams = sum(1 for k in _IMAGE_KEYS if k in imgs)
+        issues["cameras"] = num_cams
 
     T = len(qpos)
 
@@ -62,6 +68,9 @@ def check_episode(path: str, min_steps: int, spike_thresh: float,
     return issues
 
 
+_INFO_KEYS = {"cameras"}   # informational — not failures
+
+
 def print_report(results: list[tuple[str, dict]]) -> int:
     BAD  = "\033[91m✗\033[0m"
     OK   = "\033[92m✓\033[0m"
@@ -69,22 +78,25 @@ def print_report(results: list[tuple[str, dict]]) -> int:
 
     n_bad = 0
     print()
-    print(f"{'Episode':<30}  Status   Issues")
-    print("─" * 80)
+    print(f"{'Episode':<30}  Cams  Status   Issues")
+    print("─" * 86)
     for name, issues in results:
-        structural = {k: v for k, v in issues.items() if k != "spikes"}
+        num_cams   = issues.get("cameras", "?")
+        real_issues = {k: v for k, v in issues.items() if k not in _INFO_KEYS}
+        structural  = {k: v for k, v in real_issues.items() if k != "spikes"}
         if structural:
             icon = BAD;  n_bad += 1
-        elif "spikes" in issues:
+        elif "spikes" in real_issues:
             icon = WARN
         else:
             icon = OK
-        txt = "  |  ".join(f"{k}: {v}" for k, v in issues.items()) or "—"
-        print(f"  {icon}  {name:<28}  {txt}")
+        txt = "  |  ".join(f"{k}: {v}" for k, v in real_issues.items()) or "—"
+        print(f"  {icon}  {name:<28}  {num_cams!s:>4}  {txt}")
 
-    print("─" * 80)
-    n_warn  = sum(1 for _, i in results if "spikes" in i and not {k for k in i if k != "spikes"})
-    n_clean = sum(1 for _, i in results if not i)
+    print("─" * 86)
+    n_warn  = sum(1 for _, i in results
+                  if "spikes" in i and not {k for k in i if k not in _INFO_KEYS | {"spikes"}})
+    n_clean = sum(1 for _, i in results if not {k for k in i if k not in _INFO_KEYS})
     print(f"Total: {len(results)}  |  bad: {n_bad}  |  warned: {n_warn}  |  clean: {n_clean}")
     print()
     return n_bad

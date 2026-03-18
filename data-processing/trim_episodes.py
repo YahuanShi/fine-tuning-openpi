@@ -58,18 +58,26 @@ def trim_episode(src: str, dst: str, trim_start: int, trim_end: int) -> int:
         action   = f["action"][:]
         exterior = f["observations/images/exterior_image_1_left"][:]
         wrist    = f["observations/images/wrist_image_left"][:]
+        imgs     = f["observations/images"]
+        front    = imgs["front_image_1"][:] if "front_image_1" in imgs else None
+        attrs    = dict(f.attrs)
 
     T       = len(qpos)
     end_idx = T - trim_end if trim_end > 0 else T
     sl      = slice(trim_start, end_idx)
 
     with h5py.File(dst, "w") as f:
+        for k, v in attrs.items():
+            f.attrs[k] = v
         f.create_dataset("observations/qpos",   data=qpos[sl],     compression="gzip")
         f.create_dataset("action",               data=action[sl],   compression="gzip")
         f.create_dataset("observations/images/exterior_image_1_left",
                          data=exterior[sl], compression="gzip")
         f.create_dataset("observations/images/wrist_image_left",
                          data=wrist[sl],    compression="gzip")
+        if front is not None:
+            f.create_dataset("observations/images/front_image_1",
+                             data=front[sl], compression="gzip")
     return end_idx - trim_start
 
 
