@@ -96,8 +96,16 @@ def smooth_episode(src: str, dst: str, window: int, poly: int) -> None:
 def main():
     parser = argparse.ArgumentParser(description="Smooth qpos and action with Savitzky-Golay filter.")
     parser.add_argument("dataset_dir", help="Directory containing episode_*.hdf5 files, or a single .hdf5 file")
-    parser.add_argument("output", nargs="?", default=None, help="Output directory for smoothed files (default: dataset_dir)")
-    parser.add_argument("--output", "-o", default=None, dest="output_flag", help="Output directory for smoothed files (alias for positional)")
+    parser.add_argument(
+        "output", nargs="?", default=None, help="Output directory for smoothed files (default: dataset_dir)"
+    )
+    parser.add_argument(
+        "--output",
+        "-o",
+        default=None,
+        dest="output_flag",
+        help="Output directory for smoothed files (alias for positional)",
+    )
     parser.add_argument(
         "--window", type=int, default=DEFAULT_WINDOW, help=f"Filter window length (odd, default {DEFAULT_WINDOW})"
     )
