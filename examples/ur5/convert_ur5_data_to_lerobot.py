@@ -178,15 +178,15 @@ def convert(raw_dir: Path, repo_id: str, fps: int) -> None:
                     "joints": joints_rad[t],  # float32 (6,)
                     "gripper": gripper_pi05[t],  # float32 (1,)
                     "actions": actions[t],  # float32 (7,)
+                    "task": prompt,
                 }
             )
 
-        # task= is stored per-episode and becomes the LeRobot "task" / "prompt" field
-        dataset.save_episode(task=prompt)
+        dataset.save_episode()
         print(f"    Saved {n_steps} steps, prompt: '{prompt[:60]}'")
 
     # ── Finalise ─────────────────────────────────────────────────────────────
-    dataset.consolidate(run_compute_stats=True)
+    dataset.stop_image_writer()
     print(f"\nDataset saved to {output_path}")
 
 
