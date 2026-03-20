@@ -188,8 +188,16 @@ def redraw(fig, axes, lines_orig, lines_proc, proc_episodes, orig_dir, state):
 def main():
     parser = argparse.ArgumentParser(description="Before/after trajectory comparison viewer.")
     parser.add_argument("processed", help="Processed HDF5 file or directory")
-    parser.add_argument("original_pos", nargs="?", default=None, help="Original (before) directory for comparison (optional positional)")
-    parser.add_argument("--original", "-o", default=None, dest="original_flag", help="Original (before) directory for comparison (optional)")
+    parser.add_argument(
+        "original_pos", nargs="?", default=None, help="Original (before) directory for comparison (optional positional)"
+    )
+    parser.add_argument(
+        "--original",
+        "-o",
+        default=None,
+        dest="original_flag",
+        help="Original (before) directory for comparison (optional)",
+    )
     args = parser.parse_args()
     args.original = args.original_pos or args.original_flag
 
