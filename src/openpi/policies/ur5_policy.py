@@ -35,7 +35,7 @@ class UR5Inputs(transforms.DataTransformFn):
 
     def __call__(self, data: dict) -> dict:
         # Concatenate joints (6) + gripper (1) → state (7)
-        state = np.concatenate([data["joints"], data["gripper"]])
+        state = np.concatenate([data["joints"], np.atleast_1d(data["gripper"])])
 
         base_image = _parse_image(data["base_rgb"])
         wrist_image = _parse_image(data["wrist_rgb"])

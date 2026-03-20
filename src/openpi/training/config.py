@@ -1002,22 +1002,24 @@ _CONFIGS = [
     ),
     TrainConfig(
         name="pi05_ur5",
+        # Full fine-tuning — PI explicitly found LoRA underperforms for pi0/pi0.5
         model=pi0_config.Pi0Config(pi05=True, action_horizon=10, discrete_state_input=False),
         data=LeRobotUR5DataConfig(
-            repo_id="ur3_dataset_20260319",
+            repo_id="ur3_dataset_20260318",
             base_config=DataConfig(prompt_from_task=True),
         ),
-        batch_size=16,
+        batch_size=8,
         lr_schedule=_optimizer.CosineDecaySchedule(
             warmup_steps=1_000,
             peak_lr=5e-5,
-            decay_steps=100_000,
-            decay_lr=5e-5,
+            decay_steps=50_000,
+            decay_lr=1e-6,
         ),
         optimizer=_optimizer.AdamW(clip_gradient_norm=1.0),
-        ema_decay=0.999,
+        # EMA disabled — required to fit in 48 GB (EMA adds ~12.5 GB, exceeds limit)
+        ema_decay=None,
         weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi05_base/params"),
-        num_train_steps=20_000,
+        num_train_steps=50_000,
     ),
     TrainConfig(
         name="pi0_ur5_lora",
