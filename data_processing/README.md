@@ -57,13 +57,25 @@ python3 03_drop_front_camera.py path/to/raw_dir path/to/no_front_dir
 
 ---
 
-### `04_trim_episodes.py` — cut start/end frames
+### `04_smooth_episodes.py` — trajectory smoothing
+
+Applies Savitzky-Golay smoothing to `qpos` and `action` trajectories.
+The gripper dimension is left unsmoothed to preserve open/close transitions.
+
+```bash
+python3 04_smooth_episodes.py path/to/dataset_dir --output smoothed/
+python3 04_smooth_episodes.py path/to/dataset_dir --output smoothed/ --window 9 --poly 2
+```
+
+---
+
+### `05_trim_episodes.py` — cut start/end frames
 
 **Interactive mode** (default) — loops through each episode, shows the frame
 count, and asks you to type the keep range:
 
 ```bash
-python3 04_trim_episodes.py path/to/dataset_dir --output trimmed/
+python3 05_trim_episodes.py path/to/dataset_dir --output trimmed/
 ```
 
 ```
@@ -83,25 +95,13 @@ python3 04_trim_episodes.py path/to/dataset_dir --output trimmed/
 **Batch mode** — apply the same range to every episode:
 
 ```bash
-python3 04_trim_episodes.py path/to/dataset_dir --start 10 --end -8 --output trimmed/
+python3 05_trim_episodes.py path/to/dataset_dir --start 10 --end -8 --output trimmed/
 ```
 
 **Dry-run** — preview the plan without writing anything (omit `--output`):
 
 ```bash
-python3 04_trim_episodes.py path/to/dataset_dir --start 10 --end -8
-```
-
----
-
-### `05_smooth_episodes.py` — trajectory smoothing
-
-Applies Savitzky-Golay smoothing to `qpos` and `action` trajectories.
-The gripper dimension is left unsmoothed to preserve open/close transitions.
-
-```bash
-python3 05_smooth_episodes.py path/to/dataset_dir --output smoothed/
-python3 05_smooth_episodes.py path/to/dataset_dir --output smoothed/ --window 9 --poly 2
+python3 05_trim_episodes.py path/to/dataset_dir --start 10 --end -8
 ```
 
 ---
@@ -122,10 +122,10 @@ python3 06_visualize_trajectory.py original_dir/ training_dataset/ --no-norm
 
 | Key | Action |
 |-----|--------|
-| `↑` / `P` | Previous episode |
-| `↓` / `N` | Next episode |
+| `↑` / `←` / `P` | Previous episode |
+| `↓` / `→` / `N` | Next episode |
 | `S` | Save figure as PNG |
-| `Q` | Quit |
+| `Q` / `Escape` | Quit |
 
 ---
 

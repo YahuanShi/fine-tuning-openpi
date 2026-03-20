@@ -6,8 +6,8 @@
 #   1. check_dataset      — quality report
 #   2. visualize_episode  — interactive review / delete bad episodes
 #   3. drop_front_camera  — remove front_image_1 stream
-#   4. trim_episodes      — cut start/end frames via cuts.json
-#   5. smooth_episodes    — Savitzky-Golay trajectory smoothing
+#   4. smooth_episodes    — Savitzky-Golay trajectory smoothing
+#   5. trim_episodes      — cut start/end frames via cuts.json
 #   → training_dataset/   (final output)
 #
 # Usage:
@@ -80,17 +80,17 @@ confirm "Visual review complete."
 banner "Step 3 / 5 — Drop front camera  →  $STAGE_NO_FRONT"
 python3 "$SCRIPT_DIR/03_drop_front_camera.py" "$RAW_DIR" "$STAGE_NO_FRONT"
 
-# ── Step 4: trim episodes ─────────────────────────────────────────────────────
-banner "Step 4 / 5 — Trim episodes  →  $STAGE_TRIMMED"
-TRIM_ARGS=("$STAGE_NO_FRONT" --output "$STAGE_TRIMMED")
+# ── Step 4: smooth trajectories ───────────────────────────────────────────────
+banner "Step 4 / 5 — Smooth trajectories  →  $STAGE_TRIMMED"
+python3 "$SCRIPT_DIR/04_smooth_episodes.py" "$STAGE_NO_FRONT" \
+    --output "$STAGE_TRIMMED" --window "$WINDOW" --poly "$POLY"
+
+# ── Step 5: trim episodes ─────────────────────────────────────────────────────
+banner "Step 5 / 5 — Trim episodes  →  $OUT_DIR"
+TRIM_ARGS=("$STAGE_TRIMMED" --output "$OUT_DIR")
 [[ -f "$CUTS_FILE" ]] && TRIM_ARGS+=(--cuts "$CUTS_FILE")
 [[ "$GLOBAL_TRIM" -gt 0 ]] && TRIM_ARGS+=(--trim "$GLOBAL_TRIM")
-python3 "$SCRIPT_DIR/04_trim_episodes.py" "${TRIM_ARGS[@]}"
-
-# ── Step 5: smooth trajectories ───────────────────────────────────────────────
-banner "Step 5 / 5 — Smooth trajectories  →  $OUT_DIR"
-python3 "$SCRIPT_DIR/05_smooth_episodes.py" "$STAGE_TRIMMED" \
-    --output "$OUT_DIR" --window "$WINDOW" --poly "$POLY"
+python3 "$SCRIPT_DIR/05_trim_episodes.py" "${TRIM_ARGS[@]}"
 
 # ── done ──────────────────────────────────────────────────────────────────────
 echo
