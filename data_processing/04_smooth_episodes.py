@@ -23,9 +23,10 @@ import numpy as np
 from scipy.ndimage import uniform_filter1d
 from scipy.signal import savgol_filter
 
-DEFAULT_WINDOW = 9  # must be odd
+DEFAULT_WINDOW = 13  # must be odd
 DEFAULT_POLY = 1
 FLAT_STD_THRESH = 1e-3  # rolling-std threshold to detect flat regions
+FLAT_RANGE_THRESH = 1e-2  # if entire column range < this, skip smoothing it
 PRESERVE_TAIL = 2  # number of final timesteps to leave untouched
 
 
@@ -50,6 +51,10 @@ def smooth_array(arr: np.ndarray, window: int, poly: int) -> np.ndarray:
     out = arr.copy()
     for d in range(arr.shape[1] - 1):
         col = arr[:, d]
+        # flatten to mean if column is globally flat (avoids SG ringing on constant joints)
+        if col.max() - col.min() < FLAT_RANGE_THRESH:
+            out[:, d] = col.mean()
+            continue
         smoothed = savgol_filter(col, window_length=window, polyorder=poly)
         flat_mask = _rolling_std(col, window) < FLAT_STD_THRESH
         smoothed[flat_mask] = col[flat_mask]
@@ -64,7 +69,7 @@ def smooth_array(arr: np.ndarray, window: int, poly: int) -> np.ndarray:
         for i, a in enumerate(alpha):
             idx = blend_start + i
             out[idx] = (1.0 - a) * out[idx] + a * arr[idx]
-    return out
+    return np.round(out, 1)
 
 
 def smooth_episode(src: str, dst: str, window: int, poly: int) -> None:
@@ -91,12 +96,19 @@ def smooth_episode(src: str, dst: str, window: int, poly: int) -> None:
 def main():
     parser = argparse.ArgumentParser(description="Smooth qpos and action with Savitzky-Golay filter.")
     parser.add_argument("dataset_dir", help="Directory containing episode_*.hdf5 files, or a single .hdf5 file")
-    parser.add_argument("--output", "-o", required=True, help="Output directory for smoothed files")
+    parser.add_argument("output", nargs="?", default=None, help="Output directory for smoothed files (default: dataset_dir)")
+    parser.add_argument("--output", "-o", default=None, dest="output_flag", help="Output directory for smoothed files (alias for positional)")
     parser.add_argument(
         "--window", type=int, default=DEFAULT_WINDOW, help=f"Filter window length (odd, default {DEFAULT_WINDOW})"
     )
     parser.add_argument("--poly", type=int, default=DEFAULT_POLY, help=f"Polynomial order (default {DEFAULT_POLY})")
     args = parser.parse_args()
+
+    # resolve output: positional > --output flag > default to dataset_dir
+    if args.output is None:
+        args.output = args.output_flag
+    if args.output is None:
+        args.output = args.dataset_dir if os.path.isdir(args.dataset_dir) else os.path.dirname(args.dataset_dir)
 
     if args.window % 2 == 0:
         sys.exit("ERROR: --window must be odd")

@@ -11,12 +11,12 @@ Vertical cursor synced across all subplots.
 
 Navigate episodes
 ─────────────────
-  Right / D / N  next episode
-  Left  / A / P  previous episode
+  N / ↓ / →   next episode
+  P / ↑ / ←   previous episode
 
 Other
 ─────
-  S    save current figure as PNG
+  S           save current figure as PNG
   Q / Escape  quit
 
 Usage:
@@ -188,8 +188,10 @@ def redraw(fig, axes, lines_orig, lines_proc, proc_episodes, orig_dir, state):
 def main():
     parser = argparse.ArgumentParser(description="Before/after trajectory comparison viewer.")
     parser.add_argument("processed", help="Processed HDF5 file or directory")
-    parser.add_argument("--original", "-o", default=None, help="Original (before) directory for comparison (optional)")
+    parser.add_argument("original_pos", nargs="?", default=None, help="Original (before) directory for comparison (optional positional)")
+    parser.add_argument("--original", "-o", default=None, dest="original_flag", help="Original (before) directory for comparison (optional)")
     args = parser.parse_args()
+    args.original = args.original_pos or args.original_flag
 
     proc_episodes, ep_idx = collect_episodes(args.processed)
     has_original = args.original is not None
@@ -259,9 +261,9 @@ def main():
     # ── keyboard handler ──────────────────────────────────────────────────────
     def on_key(event):
         key = event.key
-        if key in ("right", "d", "n"):
+        if key in ("right", "down", "n"):
             state["ep_idx"] = (state["ep_idx"] + 1) % len(proc_episodes)
-        elif key in ("left", "a", "p"):
+        elif key in ("left", "up", "p"):
             state["ep_idx"] = (state["ep_idx"] - 1) % len(proc_episodes)
         elif key == "s":
             ep_name = os.path.basename(proc_episodes[state["ep_idx"]])
