@@ -38,20 +38,20 @@ log = logging.getLogger(__name__)
 UR5_IP = "10.0.0.1"
 GRIPPER_PORT = "/dev/ttyACM0"
 GRIPPER_BAUDRATE = 9600
-GRIPPER_MAX_MM = 29.5
+GRIPPER_MAX_MM = 50
 GRIPPER_OPEN_THRESH_MM = 5.0  # below this → considered closed
 
-CAM_SERIAL_BASE = "105422060444"  # D415 exterior
+CAM_SERIAL_BASE = "105422061000"  # D415 exterior
 CAM_SERIAL_WRIST = "352122273671"  # D405 wrist
 IMAGE_SIZE = 224
 
-HOME_DEG = [0.0, -90.0, 90.0, -90.0, -90.0, 0.0]
+HOME_DEG = [45.0, -20.0, -140.0, -40.0, -270.0, 0.0]
 HOME_RAD = np.radians(HOME_DEG)
 
-SERVO_J_TIME = 0.016  # s per step (~60 Hz)
-SERVO_J_LOOKAHEAD = 0.08
-SERVO_J_GAIN = 300
-MAX_JOINT_VEL = 1.0  # rad/s safety clamp
+SERVO_J_TIME = 0.1         # s per step (must match 1/CONTROL_HZ)
+SERVO_J_LOOKAHEAD = 0.2   # s look-ahead — servoJ's primary smoothing knob; higher = smoother
+SERVO_J_GAIN = 100
+MAX_JOINT_VEL = 0.08  # rad/s safety clamp
 
 
 # ══════════════════════════════ Gripper ══════════════════════════════
