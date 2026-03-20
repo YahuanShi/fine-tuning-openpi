@@ -14,7 +14,7 @@ Logic:
     Keep --tail_pad frames after that settling point.  Delete the rest.
     (Backward search avoids cutting at mid-episode pauses.)
 
-Note: joint 6 (gripper, range 0–1) is excluded by default.
+Note: joint 6 (gripper, range 0-1) is excluded by default.
 
 Usage:
     # ── Single episode ────────────────────────────────────────────────
@@ -39,8 +39,8 @@ import sys
 import h5py
 import numpy as np
 
-
 # ─── I/O helpers ──────────────────────────────────────────────────────────────
+
 
 def _image_keys(f: h5py.File) -> list[str]:
     imgs = f.get("observations/images", {})
@@ -50,9 +50,9 @@ def _image_keys(f: h5py.File) -> list[str]:
 def trim_episode(src: str, dst: str, start: int, end: int) -> int:
     """Copy src → dst keeping frames [start:end+1]. Returns kept frame count."""
     with h5py.File(src, "r") as f:
-        qpos   = f["observations/qpos"][:]
+        qpos = f["observations/qpos"][:]
         action = f["action"][:]
-        attrs  = dict(f.attrs)
+        attrs = dict(f.attrs)
         img_data = {}
         for k in _image_keys(f):
             img_data[k] = f[f"observations/images/{k}"][:]
@@ -62,8 +62,8 @@ def trim_episode(src: str, dst: str, start: int, end: int) -> int:
     with h5py.File(dst, "w") as f:
         for k, v in attrs.items():
             f.attrs[k] = v
-        f.create_dataset("observations/qpos", data=qpos[sl],   compression="gzip")
-        f.create_dataset("action",            data=action[sl],  compression="gzip")
+        f.create_dataset("observations/qpos", data=qpos[sl], compression="gzip")
+        f.create_dataset("action", data=action[sl], compression="gzip")
         for k, v in img_data.items():
             f.create_dataset(f"observations/images/{k}", data=v[sl], compression="gzip")
 
@@ -71,6 +71,7 @@ def trim_episode(src: str, dst: str, start: int, end: int) -> int:
 
 
 # ─── auto-detect movement range ──────────────────────────────────────────────
+
 
 def detect_movement_range(
     qpos: np.ndarray,
@@ -101,7 +102,7 @@ def detect_movement_range(
     T = qpos.shape[0]
 
     # frame-to-frame absolute difference for the selected joints (degrees)
-    diff = np.abs(np.diff(qpos[:, joints], axis=0))   # shape: (T-1, len(joints))
+    diff = np.abs(np.diff(qpos[:, joints], axis=0))  # shape: (T-1, len(joints))
 
     # ── HEAD ─────────────────────────────────────────────────────────────────
     # In the first head_window diffs, find the FIRST index where ANY joint
@@ -142,22 +143,23 @@ def detect_movement_range(
 
 # ─── resolve input to file list ──────────────────────────────────────────────
 
+
 def collect_files(input_path: str) -> list[str]:
     """Accept a single .hdf5 file or a directory; return sorted file list."""
     if os.path.isfile(input_path):
         if not input_path.endswith(".hdf5"):
             sys.exit(f"Not an HDF5 file: {input_path}")
         return [input_path]
-    elif os.path.isdir(input_path):
+    if os.path.isdir(input_path):
         files = sorted(glob.glob(os.path.join(input_path, "*.hdf5")))
         if not files:
             sys.exit(f"No .hdf5 files found in: {input_path}")
         return files
-    else:
-        sys.exit(f"Path does not exist: {input_path}")
+    sys.exit(f"Path does not exist: {input_path}")
 
 
 # ─── main ─────────────────────────────────────────────────────────────────────
+
 
 def main():
     parser = argparse.ArgumentParser(
@@ -165,25 +167,34 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=__doc__,
     )
-    parser.add_argument("input",
-                        help="Single .hdf5 file OR directory containing *.hdf5 files")
-    parser.add_argument("output", nargs="?", default=None,
-                        help="Output directory (omit for dry-run)")
-    parser.add_argument("--joints", type=int, nargs="+", default=[0, 1, 2, 3, 4, 5],
-                        help="Joint indices to monitor (default: 0 1 2 3 4 5, excluding gripper)")
-    parser.add_argument("--threshold", type=float, default=0.1,
-                        help="Joint angle change threshold in degrees (default: 0.1)")
-    parser.add_argument("--pad", type=int, default=3,
-                        help="Frames to keep before first movement (default: 3)")
-    parser.add_argument("--head_window", type=int, default=50,
-                        help="How many steps from the start to scan for first movement (default: 50)")
-    parser.add_argument("--tail_window", type=int, default=50,
-                        help="How many steps from the end to scan for all-still (default: 50)")
-    parser.add_argument("--tail_pad", type=int, default=3,
-                        help="Frames to keep after first all-still point in tail (default: 3)")
+    parser.add_argument("input", help="Single .hdf5 file OR directory containing *.hdf5 files")
+    parser.add_argument("output", nargs="?", default=None, help="Output directory (omit for dry-run)")
+    parser.add_argument(
+        "--joints",
+        type=int,
+        nargs="+",
+        default=[0, 1, 2, 3, 4, 5],
+        help="Joint indices to monitor (default: 0 1 2 3 4 5, excluding gripper)",
+    )
+    parser.add_argument(
+        "--threshold", type=float, default=0.1, help="Joint angle change threshold in degrees (default: 0.1)"
+    )
+    parser.add_argument("--pad", type=int, default=3, help="Frames to keep before first movement (default: 3)")
+    parser.add_argument(
+        "--head_window",
+        type=int,
+        default=50,
+        help="How many steps from the start to scan for first movement (default: 50)",
+    )
+    parser.add_argument(
+        "--tail_window", type=int, default=50, help="How many steps from the end to scan for all-still (default: 50)"
+    )
+    parser.add_argument(
+        "--tail_pad", type=int, default=3, help="Frames to keep after first all-still point in tail (default: 3)"
+    )
     args = parser.parse_args()
 
-    files   = collect_files(args.input)
+    files = collect_files(args.input)
     dry_run = args.output is None
 
     if dry_run:
@@ -207,26 +218,28 @@ def main():
             qpos = f["observations/qpos"][:]
 
         T = qpos.shape[0]
-        s, e = detect_movement_range(qpos, args.joints, args.threshold, args.pad,
-                                     args.head_window,
-                                     args.tail_window, args.tail_pad)
+        s, e = detect_movement_range(
+            qpos, args.joints, args.threshold, args.pad, args.head_window, args.tail_window, args.tail_pad
+        )
         plan.append((path, name, T, s, e))
 
     # ── summary table ─────────────────────────────────────────────────────────
     print(f"  {'Episode':<28}  {'Total':>6}  {'Start':>6}  {'End':>6}  {'Kept':>6}  {'Trimmed':>8}")
     print("  " + "─" * 72)
     for _, name, T, s, e in plan:
-        kept    = e - s + 1
+        kept = e - s + 1
         trimmed = T - kept
         flag = "  ⚠ no move" if (s == 0 and e == T - 1 and T > 10) else ""
         print(f"  {name:<28}  {T:>6}  {s:>6}  {e:>6}  {kept:>6}  {trimmed:>8}{flag}")
     print("  " + "─" * 72)
 
-    total_orig    = sum(T for _, _, T, _, _ in plan)
-    total_kept    = sum(e - s + 1 for _, _, _, s, e in plan)
+    total_orig = sum(T for _, _, T, _, _ in plan)
+    total_kept = sum(e - s + 1 for _, _, _, s, e in plan)
     total_trimmed = total_orig - total_kept
-    print(f"  Total: {total_orig} frames → {total_kept} kept, {total_trimmed} trimmed "
-          f"({100 * total_trimmed / max(total_orig, 1):.1f}% removed)\n")
+    print(
+        f"  Total: {total_orig} frames → {total_kept} kept, {total_trimmed} trimmed "
+        f"({100 * total_trimmed / max(total_orig, 1):.1f}% removed)\n"
+    )
 
     if dry_run:
         return
@@ -239,7 +252,7 @@ def main():
             print(f"  COPY  {dst}  (unchanged)")
         else:
             trim_episode(path, dst, s, e)
-            print(f"  WROTE {dst}  [frames {s}–{e}]")
+            print(f"  WROTE {dst}  [frames {s}-{e}]")
 
     print(f"\nDone. {len(plan)} episodes → {args.output}")
 

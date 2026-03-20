@@ -48,8 +48,8 @@ IMAGE_SIZE = 224
 HOME_DEG = [45.0, -20.0, -140.0, -40.0, -270.0, 0.0]
 HOME_RAD = np.radians(HOME_DEG)
 
-SERVO_J_TIME = 0.1         # s per step (must match 1/CONTROL_HZ)
-SERVO_J_LOOKAHEAD = 0.2   # s look-ahead — servoJ's primary smoothing knob; higher = smoother
+SERVO_J_TIME = 0.1  # s per step (must match 1/CONTROL_HZ)
+SERVO_J_LOOKAHEAD = 0.2  # s look-ahead — servoJ's primary smoothing knob; higher = smoother
 SERVO_J_GAIN = 100
 MAX_JOINT_VEL = 0.08  # rad/s safety clamp
 
@@ -66,10 +66,10 @@ class WeissCRGGripper:
     PDOUT=[02,00] open  |  PDOUT=[03,00] close  |  PDOUT=[07,00] reference
     """
 
-    FLAG_OPEN    = 1
-    FLAG_CLOSED  = 2
+    FLAG_OPEN = 1
+    FLAG_CLOSED = 2
     FLAG_HOLDING = 3
-    FLAG_FAULT   = 4
+    FLAG_FAULT = 4
 
     def __init__(self, port: str = GRIPPER_PORT, baudrate: int = GRIPPER_BAUDRATE):
         self._lock = threading.Lock()
@@ -125,8 +125,9 @@ class WeissCRGGripper:
     def _set_positions(self, open_mm: float = GRIPPER_MAX_MM, close_mm: float = 0.5) -> None:
         def enc(mm):
             v = int(mm * 100)
-            return f"[{(v>>8)&0xFF:02x},{v&0xFF:02x}]"
-        self._send(f"SETPARAM(96, 2, {enc(open_mm)})",  0.3)
+            return f"[{(v >> 8) & 0xFF:02x},{v & 0xFF:02x}]"
+
+        self._send(f"SETPARAM(96, 2, {enc(open_mm)})", 0.3)
         self._send(f"SETPARAM(96, 1, {enc(close_mm)})", 0.3)
         self._send("SETPARAM(96, 3, [64])", 0.3)
 
@@ -151,9 +152,9 @@ class WeissCRGGripper:
         """Open (width_mm > threshold) or close."""
         self._set_positions(GRIPPER_MAX_MM, 0.5)
         if width_mm > GRIPPER_OPEN_THRESH_MM:
-            self._send("PDOUT=[02,00]", 0.2)   # open
+            self._send("PDOUT=[02,00]", 0.2)  # open
         else:
-            self._send("PDOUT=[03,00]", 0.2)   # close
+            self._send("PDOUT=[03,00]", 0.2)  # close
 
     def get_width(self) -> float:
         self._read_pdin(timeout=0.5)

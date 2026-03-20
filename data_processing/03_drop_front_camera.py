@@ -16,26 +16,23 @@ import h5py
 
 def drop_front(src: str, dst: str) -> None:
     with h5py.File(src, "r") as f:
-        qpos     = f["observations/qpos"][:]
-        action   = f["action"][:]
+        qpos = f["observations/qpos"][:]
+        action = f["action"][:]
         exterior = f["observations/images/exterior_image_1_left"][:]
-        wrist    = f["observations/images/wrist_image_left"][:]
-        attrs    = dict(f.attrs)
+        wrist = f["observations/images/wrist_image_left"][:]
+        attrs = dict(f.attrs)
 
     with h5py.File(dst, "w") as f:
         for k, v in attrs.items():
             f.attrs[k] = v
-        f.create_dataset("observations/qpos",   data=qpos,     compression="gzip")
-        f.create_dataset("action",               data=action,   compression="gzip")
-        f.create_dataset("observations/images/exterior_image_1_left",
-                         data=exterior, compression="gzip")
-        f.create_dataset("observations/images/wrist_image_left",
-                         data=wrist,    compression="gzip")
+        f.create_dataset("observations/qpos", data=qpos, compression="gzip")
+        f.create_dataset("action", data=action, compression="gzip")
+        f.create_dataset("observations/images/exterior_image_1_left", data=exterior, compression="gzip")
+        f.create_dataset("observations/images/wrist_image_left", data=wrist, compression="gzip")
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Copy episodes to a new directory, dropping front_image_1.")
+    parser = argparse.ArgumentParser(description="Copy episodes to a new directory, dropping front_image_1.")
     parser.add_argument("src", help="Source directory with episode_*.hdf5 files")
     parser.add_argument("dst", help="Destination directory")
     args = parser.parse_args()

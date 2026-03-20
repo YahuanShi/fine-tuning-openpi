@@ -34,7 +34,6 @@ import shutil
 import sys
 
 import h5py
-import numpy as np
 
 
 def load_cuts(path: str) -> dict:
@@ -54,44 +53,41 @@ def resolve_cut(ep_name: str, cuts: dict, global_trim: int) -> tuple[int, int]:
 def trim_episode(src: str, dst: str, trim_start: int, trim_end: int) -> int:
     """Write trimmed copy of src to dst. Returns number of kept frames."""
     with h5py.File(src, "r") as f:
-        qpos     = f["observations/qpos"][:]
-        action   = f["action"][:]
+        qpos = f["observations/qpos"][:]
+        action = f["action"][:]
         exterior = f["observations/images/exterior_image_1_left"][:]
-        wrist    = f["observations/images/wrist_image_left"][:]
-        imgs     = f["observations/images"]
-        front    = imgs["front_image_1"][:] if "front_image_1" in imgs else None
-        attrs    = dict(f.attrs)
+        wrist = f["observations/images/wrist_image_left"][:]
+        imgs = f["observations/images"]
+        front = imgs["front_image_1"][:] if "front_image_1" in imgs else None
+        attrs = dict(f.attrs)
 
-    T       = len(qpos)
+    T = len(qpos)
     end_idx = T - trim_end if trim_end > 0 else T
-    sl      = slice(trim_start, end_idx)
+    sl = slice(trim_start, end_idx)
 
     with h5py.File(dst, "w") as f:
         for k, v in attrs.items():
             f.attrs[k] = v
-        f.create_dataset("observations/qpos",   data=qpos[sl],     compression="gzip")
-        f.create_dataset("action",               data=action[sl],   compression="gzip")
-        f.create_dataset("observations/images/exterior_image_1_left",
-                         data=exterior[sl], compression="gzip")
-        f.create_dataset("observations/images/wrist_image_left",
-                         data=wrist[sl],    compression="gzip")
+        f.create_dataset("observations/qpos", data=qpos[sl], compression="gzip")
+        f.create_dataset("action", data=action[sl], compression="gzip")
+        f.create_dataset("observations/images/exterior_image_1_left", data=exterior[sl], compression="gzip")
+        f.create_dataset("observations/images/wrist_image_left", data=wrist[sl], compression="gzip")
         if front is not None:
-            f.create_dataset("observations/images/front_image_1",
-                             data=front[sl], compression="gzip")
+            f.create_dataset("observations/images/front_image_1", data=front[sl], compression="gzip")
     return end_idx - trim_start
 
 
 def main():
     parser = argparse.ArgumentParser(description="Trim episode start/end frames.")
-    parser.add_argument("dataset_dir",
-                        help="Directory containing episode_*.hdf5 files")
-    parser.add_argument("--output", "-o", default=None,
-                        help="Output directory (omit for dry-run)")
-    parser.add_argument("--cuts", default=None, metavar="FILE",
-                        help="JSON cuts file from visualize_trajectory.py")
-    parser.add_argument("--trim", type=int, default=0,
-                        help="Global fallback: frames to cut from each end "
-                             "for episodes not listed in --cuts (default 0)")
+    parser.add_argument("dataset_dir", help="Directory containing episode_*.hdf5 files")
+    parser.add_argument("--output", "-o", default=None, help="Output directory (omit for dry-run)")
+    parser.add_argument("--cuts", default=None, metavar="FILE", help="JSON cuts file from visualize_trajectory.py")
+    parser.add_argument(
+        "--trim",
+        type=int,
+        default=0,
+        help="Global fallback: frames to cut from each end for episodes not listed in --cuts (default 0)",
+    )
     args = parser.parse_args()
 
     files = sorted(glob.glob(os.path.join(args.dataset_dir, "*.hdf5")))
@@ -107,13 +103,13 @@ def main():
 
     plan = []
     for path in files:
-        name     = os.path.basename(path)
+        name = os.path.basename(path)
         with h5py.File(path, "r") as f:
             T = f["observations/qpos"].shape[0]
-        cs, ce   = resolve_cut(name, cuts, args.trim)
-        t_kept   = T - cs - ce
+        cs, ce = resolve_cut(name, cuts, args.trim)
+        t_kept = T - cs - ce
         plan.append((path, name, T, cs, ce, t_kept))
-        flag     = "  ⚠ kept < 10" if t_kept < 10 else ""
+        flag = "  ⚠ kept < 10" if t_kept < 10 else ""
         print(f"  {name:<28}  {T:>7}  {cs:>9}  {ce:>7}  {t_kept:>7}{flag}")
 
     print("─" * 68)
@@ -123,7 +119,7 @@ def main():
         return
 
     os.makedirs(args.output, exist_ok=True)
-    for path, name, T, cs, ce, t_kept in plan:
+    for path, name, _T, cs, ce, _t_kept in plan:
         dst = os.path.join(args.output, name)
         if cs == 0 and ce == 0:
             shutil.copy2(path, dst)

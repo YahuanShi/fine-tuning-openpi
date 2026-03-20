@@ -19,9 +19,8 @@ import h5py
 import numpy as np
 from scipy.signal import savgol_filter
 
-
-DEFAULT_WINDOW = 15   # must be odd
-DEFAULT_POLY   = 3
+DEFAULT_WINDOW = 15  # must be odd
+DEFAULT_POLY = 3
 
 
 def smooth_array(arr: np.ndarray, window: int, poly: int) -> np.ndarray:
@@ -36,41 +35,33 @@ def smooth_array(arr: np.ndarray, window: int, poly: int) -> np.ndarray:
 
 def smooth_episode(src: str, dst: str, window: int, poly: int) -> None:
     with h5py.File(src, "r") as f:
-        qpos     = f["observations/qpos"][:]
-        action   = f["action"][:]
+        qpos = f["observations/qpos"][:]
+        action = f["action"][:]
         exterior = f["observations/images/exterior_image_1_left"][:]
-        wrist    = f["observations/images/wrist_image_left"][:]
-        imgs     = f["observations/images"]
-        front    = imgs["front_image_1"][:] if "front_image_1" in imgs else None
-        attrs    = dict(f.attrs)
+        wrist = f["observations/images/wrist_image_left"][:]
+        imgs = f["observations/images"]
+        front = imgs["front_image_1"][:] if "front_image_1" in imgs else None
+        attrs = dict(f.attrs)
 
     with h5py.File(dst, "w") as f:
         for k, v in attrs.items():
             f.attrs[k] = v
-        f.create_dataset("observations/qpos",   data=smooth_array(qpos,   window, poly),
-                         compression="gzip")
-        f.create_dataset("action",               data=smooth_array(action, window, poly),
-                         compression="gzip")
-        f.create_dataset("observations/images/exterior_image_1_left",
-                         data=exterior, compression="gzip")
-        f.create_dataset("observations/images/wrist_image_left",
-                         data=wrist,    compression="gzip")
+        f.create_dataset("observations/qpos", data=smooth_array(qpos, window, poly), compression="gzip")
+        f.create_dataset("action", data=smooth_array(action, window, poly), compression="gzip")
+        f.create_dataset("observations/images/exterior_image_1_left", data=exterior, compression="gzip")
+        f.create_dataset("observations/images/wrist_image_left", data=wrist, compression="gzip")
         if front is not None:
-            f.create_dataset("observations/images/front_image_1",
-                             data=front, compression="gzip")
+            f.create_dataset("observations/images/front_image_1", data=front, compression="gzip")
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Smooth qpos and action with Savitzky-Golay filter.")
-    parser.add_argument("dataset_dir",
-                        help="Directory containing episode_*.hdf5 files")
-    parser.add_argument("--output", "-o", required=True,
-                        help="Output directory for smoothed files")
-    parser.add_argument("--window", type=int, default=DEFAULT_WINDOW,
-                        help=f"Filter window length (odd, default {DEFAULT_WINDOW})")
-    parser.add_argument("--poly",   type=int, default=DEFAULT_POLY,
-                        help=f"Polynomial order (default {DEFAULT_POLY})")
+    parser = argparse.ArgumentParser(description="Smooth qpos and action with Savitzky-Golay filter.")
+    parser.add_argument("dataset_dir", help="Directory containing episode_*.hdf5 files")
+    parser.add_argument("--output", "-o", required=True, help="Output directory for smoothed files")
+    parser.add_argument(
+        "--window", type=int, default=DEFAULT_WINDOW, help=f"Filter window length (odd, default {DEFAULT_WINDOW})"
+    )
+    parser.add_argument("--poly", type=int, default=DEFAULT_POLY, help=f"Polynomial order (default {DEFAULT_POLY})")
     args = parser.parse_args()
 
     if args.window % 2 == 0:
@@ -83,12 +74,11 @@ def main():
         sys.exit(f"No .hdf5 files found in: {args.dataset_dir}")
 
     os.makedirs(args.output, exist_ok=True)
-    print(f"Smoothing {len(files)} episode(s)  "
-          f"(window={args.window}, poly={args.poly})  →  {args.output}")
+    print(f"Smoothing {len(files)} episode(s)  (window={args.window}, poly={args.poly})  →  {args.output}")
 
     for path in files:
         name = os.path.basename(path)
-        dst  = os.path.join(args.output, name)
+        dst = os.path.join(args.output, name)
         smooth_episode(path, dst, args.window, args.poly)
         print(f"  WROTE {dst}")
 

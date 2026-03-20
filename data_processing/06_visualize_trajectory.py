@@ -32,35 +32,35 @@ import os
 import sys
 
 import h5py
+import matplotlib as mpl
 import numpy as np
-import matplotlib
-matplotlib.use("TkAgg")
-import matplotlib.pyplot as plt
-import matplotlib.gridspec as gridspec
 
+mpl.use("TkAgg")
+import matplotlib.gridspec as gridspec
+import matplotlib.pyplot as plt
 
 # ─── constants ────────────────────────────────────────────────────────────────
 JOINT_COLORS = [
-    "#F87171",  # J0 – red    (BGR 113,113,248)
-    "#4ADE80",  # J1 – green  (BGR 128,222, 74)
-    "#60A5FA",  # J2 – blue   (BGR 250,165, 96)
-    "#FACC15",  # J3 – yellow (BGR  21,204,250)
-    "#E879F9",  # J4 – pink   (BGR 249,121,232)
-    "#22D3EE",  # J5 – cyan   (BGR 238,211, 34)
-    "#94A3B8",  # J6 – slate  (BGR 184,163,148)
+    "#F87171",  # J0 - red    (BGR 113,113,248)
+    "#4ADE80",  # J1 - green  (BGR 128,222, 74)
+    "#60A5FA",  # J2 - blue   (BGR 250,165, 96)
+    "#FACC15",  # J3 - yellow (BGR  21,204,250)
+    "#E879F9",  # J4 - pink   (BGR 249,121,232)
+    "#22D3EE",  # J5 - cyan   (BGR 238,211, 34)
+    "#94A3B8",  # J6 - slate  (BGR 184,163,148)
 ]
 JOINT_LABELS = ["J0", "J1", "J2", "J3", "J4", "J5", "Gripper"]
 
 
 # ─── helpers ──────────────────────────────────────────────────────────────────
 
+
 def collect_episodes(path: str) -> tuple[list[str], int]:
     """Return (sorted hdf5 list, start index).  Accepts file or directory."""
     if os.path.isfile(path):
         parent = os.path.dirname(os.path.abspath(path))
-        files  = sorted(glob.glob(os.path.join(parent, "*.hdf5")))
-        start  = next((i for i, f in enumerate(files)
-                       if os.path.abspath(path) == f), 0)
+        files = sorted(glob.glob(os.path.join(parent, "*.hdf5")))
+        start = next((i for i, f in enumerate(files) if os.path.abspath(path) == f), 0)
         return files or [os.path.abspath(path)], start
     files = sorted(glob.glob(os.path.join(path, "*.hdf5")))
     if not files:
@@ -88,13 +88,13 @@ def find_original(proc_path: str, orig_dir: str) -> str | None:
 
 # ─── figure builder ───────────────────────────────────────────────────────────
 
+
 def build_figure(n_joints: int, has_original: bool):
     fig = plt.figure(figsize=(13, 14))
     fig.patch.set_facecolor("#0d0d0d")
 
-    gs = gridspec.GridSpec(n_joints, 1, hspace=0.06,
-                           left=0.08, right=0.97, top=0.93, bottom=0.04)
-    axes       = []
+    gs = gridspec.GridSpec(n_joints, 1, hspace=0.06, left=0.08, right=0.97, top=0.93, bottom=0.04)
+    axes = []
     lines_orig = []
     lines_proc = []
 
@@ -107,22 +107,25 @@ def build_figure(n_joints: int, has_original: bool):
         ax.grid(axis="y", color="#1e1e1e", linewidth=0.6)
 
         col = JOINT_COLORS[j]
-        lo, = ax.plot([], [], color=col, alpha=0.55, linewidth=1.2,
-                      linestyle="--", label="original")
-        lp, = ax.plot([], [], color=col, alpha=0.95, linewidth=1.5,
-                      label="processed")
+        (lo,) = ax.plot([], [], color=col, alpha=0.55, linewidth=1.2, linestyle="--", label="original")
+        (lp,) = ax.plot([], [], color=col, alpha=0.95, linewidth=1.5, label="processed")
 
-        ax.set_ylabel(JOINT_LABELS[j], color=col, fontsize=9,
-                      rotation=0, labelpad=30, va="center")
+        ax.set_ylabel(JOINT_LABELS[j], color=col, fontsize=9, rotation=0, labelpad=30, va="center")
         if j < n_joints - 1:
             ax.set_xticklabels([])
         else:
             ax.set_xlabel("frame", color="#777777", fontsize=8)
         if j == 0:
             handles = [lp, lo] if has_original else [lp]
-            ax.legend(handles=handles, loc="upper right", fontsize=7,
-                      facecolor="#1a1a1a", edgecolor="#3a3a3a",
-                      labelcolor="#cccccc", framealpha=0.85)
+            ax.legend(
+                handles=handles,
+                loc="upper right",
+                fontsize=7,
+                facecolor="#1a1a1a",
+                edgecolor="#3a3a3a",
+                labelcolor="#cccccc",
+                framealpha=0.85,
+            )
 
         axes.append(ax)
         lines_orig.append(lo)
@@ -133,9 +136,9 @@ def build_figure(n_joints: int, has_original: bool):
 
 # ─── draw ─────────────────────────────────────────────────────────────────────
 
-def redraw(fig, axes, lines_orig, lines_proc,
-           proc_episodes, orig_dir, state):
-    ep_idx   = state["ep_idx"]
+
+def redraw(fig, axes, lines_orig, lines_proc, proc_episodes, orig_dir, state):
+    ep_idx = state["ep_idx"]
     proc_path = proc_episodes[ep_idx]
     orig_path = find_original(proc_path, orig_dir)
 
@@ -145,10 +148,10 @@ def redraw(fig, axes, lines_orig, lines_proc,
     T_proc = len(proc)
     T_orig = len(orig) if orig is not None else T_proc
 
-    state["proc"]    = proc
-    state["orig"]    = orig
-    state["T_proc"]  = T_proc
-    state["T_orig"]  = T_orig
+    state["proc"] = proc
+    state["orig"] = orig
+    state["T_proc"] = T_proc
+    state["T_orig"] = T_orig
 
     for j, ax in enumerate(axes):
         p_vals = proc[:, j]
@@ -174,21 +177,18 @@ def redraw(fig, axes, lines_orig, lines_proc,
 
     ep_name = os.path.basename(proc_path)
     orig_tag = f"  orig: {os.path.basename(orig_path)}" if orig_path else "  (no original)"
-    nav_tag  = f"  [{ep_idx + 1}/{len(proc_episodes)}]  ←/→ episode"
-    fig.suptitle(f"{ep_name}{orig_tag}{nav_tag}",
-                 color="#dddddd", fontsize=9, fontweight="bold")
+    nav_tag = f"  [{ep_idx + 1}/{len(proc_episodes)}]  ←/→ episode"
+    fig.suptitle(f"{ep_name}{orig_tag}{nav_tag}", color="#dddddd", fontsize=9, fontweight="bold")
     fig.canvas.draw_idle()
 
 
 # ─── main ─────────────────────────────────────────────────────────────────────
 
+
 def main():
-    parser = argparse.ArgumentParser(
-        description="Before/after trajectory comparison viewer.")
-    parser.add_argument("processed",
-                        help="Processed HDF5 file or directory")
-    parser.add_argument("--original", "-o", default=None,
-                        help="Original (before) directory for comparison (optional)")
+    parser = argparse.ArgumentParser(description="Before/after trajectory comparison viewer.")
+    parser.add_argument("processed", help="Processed HDF5 file or directory")
+    parser.add_argument("--original", "-o", default=None, help="Original (before) directory for comparison (optional)")
     args = parser.parse_args()
 
     proc_episodes, ep_idx = collect_episodes(args.processed)
@@ -199,21 +199,26 @@ def main():
         print(f"Original dir       : {args.original}")
     print("  ←/→ D/A  prev/next episode   S  save PNG   Q  quit")
 
-    state = {"ep_idx": ep_idx, "proc": None, "orig": None,
-             "T_proc": 0, "T_orig": 0}
+    state = {"ep_idx": ep_idx, "proc": None, "orig": None, "T_proc": 0, "T_orig": 0}
 
     fig, axes, lines_orig, lines_proc = build_figure(7, has_original)
 
     # ── hover tooltip ─────────────────────────────────────────────────────────
     tooltip = fig.text(
-        0.01, 0.97, "", va="top", ha="left",
-        fontsize=7.5, color="#eeeeee", family="monospace",
-        bbox=dict(boxstyle="round,pad=0.5", fc="#1a1a1a", ec="#555555", alpha=0.92),
-        transform=fig.transFigure, visible=False, zorder=10,
+        0.01,
+        0.97,
+        "",
+        va="top",
+        ha="left",
+        fontsize=7.5,
+        color="#eeeeee",
+        family="monospace",
+        bbox={"boxstyle": "round,pad=0.5", "fc": "#1a1a1a", "ec": "#555555", "alpha": 0.92},
+        transform=fig.transFigure,
+        visible=False,
+        zorder=10,
     )
-    vlines = [ax.axvline(x=0, color="#ffffff", linewidth=0.7,
-                         alpha=0.4, visible=False)
-              for ax in axes]
+    vlines = [ax.axvline(x=0, color="#ffffff", linewidth=0.7, alpha=0.4, visible=False) for ax in axes]
 
     def on_motion(event):
         if event.inaxes not in axes:
@@ -261,8 +266,7 @@ def main():
         elif key == "s":
             ep_name = os.path.basename(proc_episodes[state["ep_idx"]])
             out = os.path.splitext(ep_name)[0] + "_traj.png"
-            fig.savefig(out, dpi=150, bbox_inches="tight",
-                        facecolor=fig.get_facecolor())
+            fig.savefig(out, dpi=150, bbox_inches="tight", facecolor=fig.get_facecolor())
             print(f"Figure saved → {out}")
             return
         elif key in ("q", "escape"):
@@ -270,11 +274,9 @@ def main():
             return
         else:
             return
-        redraw(fig, axes, lines_orig, lines_proc,
-               proc_episodes, args.original, state)
+        redraw(fig, axes, lines_orig, lines_proc, proc_episodes, args.original, state)
 
-    redraw(fig, axes, lines_orig, lines_proc,
-           proc_episodes, args.original, state)
+    redraw(fig, axes, lines_orig, lines_proc, proc_episodes, args.original, state)
     fig.canvas.mpl_connect("motion_notify_event", on_motion)
     fig.canvas.mpl_connect("key_press_event", on_key)
     plt.show()

@@ -135,6 +135,15 @@ unfixable = [
 "teleoperation/uarm/scripts/Uarm_teleop/Feetech_servo/feetech_servo_reader.py" = ["F403", "F405"]
 "teleoperation/uarm/scripts/Uarm_teleop/Feetech_servo/feetech_servo_changeid.py" = ["F403", "F405"]
 "teleoperation/uarm/scripts/Uarm_teleop/Feetech_servo/feetech_servo_zero.py" = ["F403", "F405"]
+# Data-processing scripts: T/W/H are domain conventions (timesteps/width/height),
+# cv2 API requires boolean positional args, % formatting is fine in scripts,
+# imports after cv2-detection block is intentional
+"data-processing/*.py" = ["N806", "N803", "FBT001", "FBT002", "FBT003", "E402", "UP031"]
+"data_processing/*.py" = ["N806", "N803", "FBT001", "FBT002", "FBT003", "E402", "UP031"]
+# Teleoperation recorder: W/H/N/TW are image dimension conventions, cv2 bool args
+"teleoperation/data_collection/episode_recorder.py" = ["N806", "FBT001", "FBT003"]
+# test_ur5.py: zip strict= not needed in a standalone test script
+"teleoperation/uarm/scripts/UR5/test_ur5.py" = ["B905"]
 
 [tool.ruff.lint.isort]
 force-single-line = true
