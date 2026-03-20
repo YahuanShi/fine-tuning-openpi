@@ -12,7 +12,7 @@ Usage:
 
 Keyboard:
     SPACE           pause / resume
-    Left / Right    step -10 / +10 frames
+    Left / Right    step -5 / +5 frames
     Up / Down       previous / next episode
     n               next episode
     p               previous episode
@@ -116,15 +116,22 @@ def decode_arrow(key_raw):
 # data
 # ══════════════════════════════════════════════════════════════════════════════
 
+def _natural_key(p: str):
+    """Sort key: split filename into text/number chunks so episode_2 < episode_10."""
+    import re
+    name = os.path.basename(p)
+    return [int(c) if c.isdigit() else c.lower() for c in re.split(r'(\d+)', name)]
+
+
 def find_episodes(path: str) -> tuple[list[str], int]:
     if os.path.isfile(path):
         parent = os.path.dirname(os.path.abspath(path))
-        files  = sorted(glob.glob(os.path.join(parent, "*.hdf5")))
+        files  = sorted(glob.glob(os.path.join(parent, "*.hdf5")), key=_natural_key)
         if not files:
             files = [os.path.abspath(path)]
         start = files.index(os.path.abspath(path)) if os.path.abspath(path) in files else 0
         return files, start
-    files = sorted(glob.glob(os.path.join(path, "**/*.hdf5"), recursive=True))
+    files = sorted(glob.glob(os.path.join(path, "**/*.hdf5"), recursive=True), key=_natural_key)
     if not files:
         sys.exit(f"No .hdf5 files found under: {path}")
     return files, 0
@@ -213,7 +220,7 @@ def make_header(ep_idx, n_eps, ep_name, t, T, paused, fast, canvas_w,
     _put(bar, t_txt, canvas_w - tw - 20, row1_y, 0.50, TEXT_SEC)
 
     # ── ROW 2: key hints ──
-    hints = ("SPC:pause  Left/Right:+-10  Up/Down:episode  f:2x  r:reset  "
+    hints = ("SPC:pause  Left/Right:+5  Up/Down:episode  f:2x  r:reset  "
              "d:delete episode  q:quit  |  mouse: drag scrub")
     _put(bar, hints, 18, row2_y, 0.38, TEXT_DIM, shadow=False)
 
@@ -545,8 +552,8 @@ def main():
             elif k == ord("d"):
                 confirm_delete = True
                 paused = True
-            elif arrow == "left":                 t = max(0, t - 10)
-            elif arrow == "right":                t = min(T - 1, t + 10)
+            elif arrow == "left":                 t = max(0, t - 5)
+            elif arrow == "right":                t = min(T - 1, t + 5)
             elif arrow == "up":                   nav = -1
             elif arrow == "down":                 nav = +1
 

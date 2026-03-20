@@ -187,7 +187,7 @@ def main():
         description="Before/after trajectory comparison viewer.")
     parser.add_argument("processed",
                         help="Processed HDF5 file or directory")
-    parser.add_argument("--original", "-o", default=None,
+    parser.add_argument("original", nargs="?", default=None,
                         help="Original (before) directory for comparison (optional)")
     args = parser.parse_args()
 

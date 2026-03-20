@@ -116,15 +116,22 @@ def decode_arrow(key_raw):
 # data
 # ══════════════════════════════════════════════════════════════════════════════
 
+def _natural_key(p: str):
+    """Sort key: split filename into text/number chunks so episode_2 < episode_10."""
+    import re
+    name = os.path.basename(p)
+    return [int(c) if c.isdigit() else c.lower() for c in re.split(r'(\d+)', name)]
+
+
 def find_episodes(path: str) -> tuple[list[str], int]:
     if os.path.isfile(path):
         parent = os.path.dirname(os.path.abspath(path))
-        files  = sorted(glob.glob(os.path.join(parent, "*.hdf5")))
+        files  = sorted(glob.glob(os.path.join(parent, "*.hdf5")), key=_natural_key)
         if not files:
             files = [os.path.abspath(path)]
         start = files.index(os.path.abspath(path)) if os.path.abspath(path) in files else 0
         return files, start
-    files = sorted(glob.glob(os.path.join(path, "**/*.hdf5"), recursive=True))
+    files = sorted(glob.glob(os.path.join(path, "**/*.hdf5"), recursive=True), key=_natural_key)
     if not files:
         sys.exit(f"No .hdf5 files found under: {path}")
     return files, 0
