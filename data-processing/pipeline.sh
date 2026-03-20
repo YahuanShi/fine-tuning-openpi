@@ -68,28 +68,28 @@ confirm() {
 
 # ── Step 1: quality check ─────────────────────────────────────────────────────
 banner "Step 1 / 5 — Quality check"
-python3 "$SCRIPT_DIR/check_dataset.py" "$RAW_DIR" || true
+python3 "$SCRIPT_DIR/01_check_dataset.py" "$RAW_DIR" || true
 confirm "Review the report above."
 
 # ── Step 2: visual review (interactive) ──────────────────────────────────────
 banner "Step 2 / 5 — Visual review   (D+Y to delete bad episodes, Q when done)"
-python3 "$SCRIPT_DIR/visualize_episode.py" "$RAW_DIR" || true
+python3 "$SCRIPT_DIR/02_visualize_episode.py" "$RAW_DIR" || true
 confirm "Visual review complete."
 
 # ── Step 3: drop front camera ─────────────────────────────────────────────────
 banner "Step 3 / 5 — Drop front camera  →  $STAGE_NO_FRONT"
-python3 "$SCRIPT_DIR/drop_front_camera.py" "$RAW_DIR" "$STAGE_NO_FRONT"
+python3 "$SCRIPT_DIR/03_drop_front_camera.py" "$RAW_DIR" "$STAGE_NO_FRONT"
 
 # ── Step 4: trim episodes ─────────────────────────────────────────────────────
 banner "Step 4 / 5 — Trim episodes  →  $STAGE_TRIMMED"
 TRIM_ARGS=("$STAGE_NO_FRONT" --output "$STAGE_TRIMMED")
 [[ -f "$CUTS_FILE" ]] && TRIM_ARGS+=(--cuts "$CUTS_FILE")
 [[ "$GLOBAL_TRIM" -gt 0 ]] && TRIM_ARGS+=(--trim "$GLOBAL_TRIM")
-python3 "$SCRIPT_DIR/trim_episodes.py" "${TRIM_ARGS[@]}"
+python3 "$SCRIPT_DIR/04_trim_episodes.py" "${TRIM_ARGS[@]}"
 
 # ── Step 5: smooth trajectories ───────────────────────────────────────────────
 banner "Step 5 / 5 — Smooth trajectories  →  $OUT_DIR"
-python3 "$SCRIPT_DIR/smooth_episodes.py" "$STAGE_TRIMMED" \
+python3 "$SCRIPT_DIR/05_smooth_episodes.py" "$STAGE_TRIMMED" \
     --output "$OUT_DIR" --window "$WINDOW" --poly "$POLY"
 
 # ── done ──────────────────────────────────────────────────────────────────────

@@ -1,20 +1,13 @@
 #!/usr/bin/env python3
 """
-Interactive joint-trajectory viewer with before/after smoothing and cut-point editor.
+Before/after trajectory comparison viewer.
 
-7 vertically stacked subplots — one per joint.  Each subplot overlays:
-  • faint line   : raw qpos
-  • solid line   : Savitzky-Golay smoothed qpos
-  • red dots     : spike frames (step > --spike-thresh)
-  • red shade    : frames that will be cut from start / end
+Each subplot overlays:
+  • faint line  : original (before processing)  — only when --original is given
+  • solid line  : processed (after)
 
-Cut-point editing
-─────────────────
-  [  /  ]        move start-cut marker  left / right  by 1 frame
-  {  /  }        move start-cut marker  left / right  by 10 frames
-  ,  /  .        move end-cut marker    left / right  by 1 frame
-  <  /  >        move end-cut marker    left / right  by 10 frames
-  W              write (save) all cut decisions to --cuts file
+Hover tooltip shows step, joint value, original value, and diff.
+Vertical cursor synced across all subplots.
 
 Navigate episodes
 ─────────────────
@@ -23,19 +16,18 @@ Navigate episodes
 
 Other
 ─────
-  S              save current figure as PNG
-  Q / Escape     quit
+  S    save current figure as PNG
+  Q / Escape  quit
 
 Usage:
-    python plot_trajectories.py path/to/dataset_dir
-    python plot_trajectories.py path/to/dataset_dir --cuts cuts.json
-    python plot_trajectories.py path/to/dataset_dir --no-smooth
-    python plot_trajectories.py path/to/dataset_dir --window 9 --poly 2
+    python 06_visualize_trajectory.py processed_dir
+    python 06_visualize_trajectory.py processed_dir --original original_dir
+    python 06_visualize_trajectory.py processed_file.hdf5
+    python 06_visualize_trajectory.py processed_file.hdf5 --original original_dir
 """
 
 import argparse
 import glob
-import json
 import os
 import sys
 
@@ -45,28 +37,25 @@ import matplotlib
 matplotlib.use("TkAgg")
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
-from scipy.signal import savgol_filter
 
 
 # ─── constants ────────────────────────────────────────────────────────────────
 JOINT_COLORS = [
-    "#EF5350",  # J0 – red
-    "#42A5F5",  # J1 – blue
-    "#66BB6A",  # J2 – green
-    "#FFA726",  # J3 – orange
-    "#AB47BC",  # J4 – purple
-    "#26C6DA",  # J5 – cyan
-    "#8D6E63",  # J6 – gripper / brown
+    "#F87171",  # J0 – red    (BGR 113,113,248)
+    "#4ADE80",  # J1 – green  (BGR 128,222, 74)
+    "#60A5FA",  # J2 – blue   (BGR 250,165, 96)
+    "#FACC15",  # J3 – yellow (BGR  21,204,250)
+    "#E879F9",  # J4 – pink   (BGR 249,121,232)
+    "#22D3EE",  # J5 – cyan   (BGR 238,211, 34)
+    "#94A3B8",  # J6 – slate  (BGR 184,163,148)
 ]
-JOINT_LABELS  = ["J0", "J1", "J2", "J3", "J4", "J5", "Gripper"]
-CUT_COLOR     = "#FF1744"   # red shading for cut regions
-CUT_ALPHA     = 0.18
-DEFAULT_SPIKE = 0.15        # rad
+JOINT_LABELS = ["J0", "J1", "J2", "J3", "J4", "J5", "Gripper"]
 
 
 # ─── helpers ──────────────────────────────────────────────────────────────────
 
-def find_episodes(path: str) -> tuple[list[str], int]:
+def collect_episodes(path: str) -> tuple[list[str], int]:
+    """Return (sorted hdf5 list, start index).  Accepts file or directory."""
     if os.path.isfile(path):
         parent = os.path.dirname(os.path.abspath(path))
         files  = sorted(glob.glob(os.path.join(parent, "*.hdf5")))
@@ -84,41 +73,30 @@ def load_qpos(path: str) -> np.ndarray:
         return f["observations/qpos"][:]
 
 
-def apply_smooth(arr: np.ndarray, window: int, poly: int) -> np.ndarray:
-    if len(arr) < window:
-        return arr.copy()
-    out = arr.copy()
-    for d in range(arr.shape[1] - 1):   # skip gripper
-        out[:, d] = savgol_filter(arr[:, d], window_length=window, polyorder=poly)
-    return out
-
-
-def load_cuts(path: str) -> dict:
-    if path and os.path.exists(path):
-        with open(path) as f:
-            return json.load(f)
-    return {}
-
-
-def save_cuts(cuts: dict, path: str) -> None:
-    with open(path, "w") as f:
-        json.dump(cuts, f, indent=2)
-    print(f"Cuts saved → {path}")
+def find_original(proc_path: str, orig_dir: str) -> str | None:
+    """Try to locate the matching original file by episode name."""
+    if orig_dir is None:
+        return None
+    name = os.path.basename(proc_path)
+    candidate = os.path.join(orig_dir, name)
+    if os.path.exists(candidate):
+        return candidate
+    # fallback: search recursively
+    matches = glob.glob(os.path.join(orig_dir, "**", name), recursive=True)
+    return matches[0] if matches else None
 
 
 # ─── figure builder ───────────────────────────────────────────────────────────
 
-def build_figure(n_joints: int):
+def build_figure(n_joints: int, has_original: bool):
     fig = plt.figure(figsize=(13, 14))
     fig.patch.set_facecolor("#0d0d0d")
 
     gs = gridspec.GridSpec(n_joints, 1, hspace=0.06,
                            left=0.08, right=0.97, top=0.93, bottom=0.04)
-    axes         = []
-    lines_raw    = []
-    lines_smooth = []
-    scatters     = []
-    cut_spans    = []   # list of (start_span, end_span) per axis
+    axes       = []
+    lines_orig = []
+    lines_proc = []
 
     for j in range(n_joints):
         ax = fig.add_subplot(gs[j])
@@ -129,13 +107,10 @@ def build_figure(n_joints: int):
         ax.grid(axis="y", color="#1e1e1e", linewidth=0.6)
 
         col = JOINT_COLORS[j]
-        lr, = ax.plot([], [], color=col, alpha=0.22, linewidth=0.9, label="raw")
-        ls, = ax.plot([], [], color=col, alpha=0.95, linewidth=1.5, label="smoothed")
-        sc   = ax.scatter([], [], color="#FF5252", s=14, zorder=5)
-
-        # cut shading (axvspan placeholders — will be replaced each redraw)
-        sp_start = ax.axvspan(0, 0, color=CUT_COLOR, alpha=0, zorder=3)
-        sp_end   = ax.axvspan(0, 0, color=CUT_COLOR, alpha=0, zorder=3)
+        lo, = ax.plot([], [], color=col, alpha=0.55, linewidth=1.2,
+                      linestyle="--", label="original")
+        lp, = ax.plot([], [], color=col, alpha=0.95, linewidth=1.5,
+                      label="processed")
 
         ax.set_ylabel(JOINT_LABELS[j], color=col, fontsize=9,
                       rotation=0, labelpad=30, va="center")
@@ -144,197 +119,163 @@ def build_figure(n_joints: int):
         else:
             ax.set_xlabel("frame", color="#777777", fontsize=8)
         if j == 0:
-            ax.legend(loc="upper right", fontsize=7,
+            handles = [lp, lo] if has_original else [lp]
+            ax.legend(handles=handles, loc="upper right", fontsize=7,
                       facecolor="#1a1a1a", edgecolor="#3a3a3a",
                       labelcolor="#cccccc", framealpha=0.85)
 
         axes.append(ax)
-        lines_raw.append(lr)
-        lines_smooth.append(ls)
-        scatters.append(sc)
-        cut_spans.append((sp_start, sp_end))
+        lines_orig.append(lo)
+        lines_proc.append(lp)
 
-    return fig, axes, lines_raw, lines_smooth, scatters, cut_spans
+    return fig, axes, lines_orig, lines_proc
 
 
 # ─── draw ─────────────────────────────────────────────────────────────────────
 
-def redraw(fig, axes, lines_raw, lines_smooth, scatters, cut_spans,
-           episodes, state, window, poly, do_smooth, spike_thresh):
+def redraw(fig, axes, lines_orig, lines_proc,
+           proc_episodes, orig_dir, state):
     ep_idx   = state["ep_idx"]
-    path     = episodes[ep_idx]
-    ep_name  = os.path.basename(path)
-    raw      = load_qpos(path)
-    T        = len(raw)
-    t        = np.arange(T)
-    sm       = apply_smooth(raw, window, poly) if do_smooth else raw
+    proc_path = proc_episodes[ep_idx]
+    orig_path = find_original(proc_path, orig_dir)
 
-    cut_start = state["cut_start"]   # frames to cut from front
-    cut_end   = state["cut_end"]     # frames to cut from back
+    proc = load_qpos(proc_path)
+    orig = load_qpos(orig_path) if orig_path else None
+
+    T_proc = len(proc)
+    T_orig = len(orig) if orig is not None else T_proc
+
+    state["proc"]    = proc
+    state["orig"]    = orig
+    state["T_proc"]  = T_proc
+    state["T_orig"]  = T_orig
 
     for j, ax in enumerate(axes):
-        raw_vals = raw[:, j]
-        sm_vals  = sm[:, j]
+        p_vals = proc[:, j]
+        t_proc = np.arange(T_proc)
 
-        lines_raw[j].set_data(t, raw_vals)
-        lines_smooth[j].set_data(t, sm_vals)
-        lines_smooth[j].set_visible(do_smooth)
+        lines_proc[j].set_data(t_proc, p_vals)
 
-        # spikes
-        scatters[j].remove()
-        deltas    = np.abs(np.diff(raw_vals))
-        spike_idx = np.where(deltas > spike_thresh)[0]
-        scatters[j] = ax.scatter(
-            spike_idx, raw_vals[spike_idx],
-            color="#FF5252", s=14, zorder=5,
-        )
+        if orig is not None:
+            o_vals = orig[:, j]
+            t_orig = np.arange(T_orig)
+            lines_orig[j].set_data(t_orig, o_vals)
+            lines_orig[j].set_visible(True)
+            all_vals = np.concatenate([p_vals, o_vals])
+        else:
+            lines_orig[j].set_data([], [])
+            lines_orig[j].set_visible(False)
+            all_vals = p_vals
 
-        ax.set_xlim(0, max(T - 1, 1))
-        vmin, vmax = raw_vals.min(), raw_vals.max()
+        ax.set_xlim(0, max(T_proc, T_orig) - 1)
+        vmin, vmax = all_vals.min(), all_vals.max()
         margin = max((vmax - vmin) * 0.08, 0.05)
         ax.set_ylim(vmin - margin, vmax + margin)
 
-        # cut shading
-        sp_s, sp_e = cut_spans[j]
-        sp_s.remove()
-        sp_e.remove()
-        cut_spans[j] = (
-            ax.axvspan(-0.5, cut_start - 0.5,
-                       color=CUT_COLOR, alpha=CUT_ALPHA if cut_start > 0 else 0,
-                       zorder=3),
-            ax.axvspan(T - cut_end - 0.5, T - 0.5,
-                       color=CUT_COLOR, alpha=CUT_ALPHA if cut_end > 0 else 0,
-                       zorder=3),
-        )
-
-    # title with cut info
-    n_kept  = T - cut_start - cut_end
-    cut_tag = f"  cut start={cut_start}  end={cut_end}  kept={n_kept}"
-    nav_tag = f"  [{ep_idx + 1}/{len(episodes)}]  ←/→ episode"
-    sm_tag  = f"  w={window},p={poly}" if do_smooth else "  raw"
-    fig.suptitle(f"{ep_name}{sm_tag}{cut_tag}{nav_tag}",
+    ep_name = os.path.basename(proc_path)
+    orig_tag = f"  orig: {os.path.basename(orig_path)}" if orig_path else "  (no original)"
+    nav_tag  = f"  [{ep_idx + 1}/{len(proc_episodes)}]  ←/→ episode"
+    fig.suptitle(f"{ep_name}{orig_tag}{nav_tag}",
                  color="#dddddd", fontsize=9, fontweight="bold")
     fig.canvas.draw_idle()
-
-    return scatters, cut_spans
 
 
 # ─── main ─────────────────────────────────────────────────────────────────────
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Interactive joint-trajectory viewer with cut editor.")
-    parser.add_argument("path",
-                        help="HDF5 file or directory of episodes")
-    parser.add_argument("--cuts",       default="cuts.json",
-                        help="JSON file to load/save per-episode cut decisions "
-                             "(default: cuts.json)")
-    parser.add_argument("--window",     type=int,   default=5,
-                        help="Savitzky-Golay window (odd, default 5)")
-    parser.add_argument("--poly",       type=int,   default=2,
-                        help="Savitzky-Golay poly order (default 2)")
-    parser.add_argument("--no-smooth",  action="store_true",
-                        help="Show raw trajectory only")
-    parser.add_argument("--spike-thresh", type=float, default=DEFAULT_SPIKE,
-                        help=f"Spike step threshold in rad (default {DEFAULT_SPIKE})")
+        description="Before/after trajectory comparison viewer.")
+    parser.add_argument("processed",
+                        help="Processed HDF5 file or directory")
+    parser.add_argument("--original", "-o", default=None,
+                        help="Original (before) directory for comparison (optional)")
     args = parser.parse_args()
 
-    if args.window % 2 == 0:
-        sys.exit("ERROR: --window must be odd")
+    proc_episodes, ep_idx = collect_episodes(args.processed)
+    has_original = args.original is not None
 
-    episodes, ep_idx = find_episodes(args.path)
-    do_smooth = not args.no_smooth
-    cuts      = load_cuts(args.cuts)   # {ep_name: {"start": N, "end": M}}
+    print(f"Processed episodes : {len(proc_episodes)}")
+    if has_original:
+        print(f"Original dir       : {args.original}")
+    print("  ←/→ D/A  prev/next episode   S  save PNG   Q  quit")
 
-    def get_cuts(name):
-        c = cuts.get(name, {})
-        return c.get("start", 0), c.get("end", 0)
+    state = {"ep_idx": ep_idx, "proc": None, "orig": None,
+             "T_proc": 0, "T_orig": 0}
 
-    def set_cuts(name, start, end):
-        cuts[name] = {"start": int(start), "end": int(end)}
+    fig, axes, lines_orig, lines_proc = build_figure(7, has_original)
 
-    def ep_len(path):
-        with h5py.File(path, "r") as f:
-            return f["observations/qpos"].shape[0]
-
-    init_s, init_e = get_cuts(os.path.basename(episodes[ep_idx]))
-    state = {
-        "ep_idx":    ep_idx,
-        "cut_start": init_s,
-        "cut_end":   init_e,
-    }
-
-    print(f"Found {len(episodes)} episode(s).  Cuts file: {args.cuts}")
-    print("  [ / ]       move start cut  ±1     { / }   ±10")
-    print("  , / .       move end cut    ±1     < / >   ±10")
-    print("  W           save all cuts to JSON")
-    print("  ←/→ D/A     prev/next episode   S  save PNG   Q  quit")
-
-    fig, axes, lines_raw, lines_smooth, scatters, cut_spans = build_figure(7)
-
-    state["scatters"], state["cut_spans"] = redraw(
-        fig, axes, lines_raw, lines_smooth, scatters, cut_spans,
-        episodes, state, args.window, args.poly, do_smooth, args.spike_thresh
+    # ── hover tooltip ─────────────────────────────────────────────────────────
+    tooltip = fig.text(
+        0.01, 0.97, "", va="top", ha="left",
+        fontsize=7.5, color="#eeeeee", family="monospace",
+        bbox=dict(boxstyle="round,pad=0.5", fc="#1a1a1a", ec="#555555", alpha=0.92),
+        transform=fig.transFigure, visible=False, zorder=10,
     )
+    vlines = [ax.axvline(x=0, color="#ffffff", linewidth=0.7,
+                         alpha=0.4, visible=False)
+              for ax in axes]
 
+    def on_motion(event):
+        if event.inaxes not in axes:
+            tooltip.set_visible(False)
+            for vl in vlines:
+                vl.set_visible(False)
+            fig.canvas.draw_idle()
+            return
+        xdata = event.xdata
+        if xdata is None:
+            return
+        proc = state["proc"]
+        orig = state["orig"]
+        if proc is None:
+            return
+        T_proc = state["T_proc"]
+        step_p = int(np.clip(round(xdata), 0, T_proc - 1))
+        j = axes.index(event.inaxes)
+
+        info = [
+            f"step      : {step_p}/{T_proc - 1}",
+            f"joint     : {JOINT_LABELS[j]}",
+            f"processed : {proc[step_p, j]:.4f}",
+        ]
+        if orig is not None:
+            T_orig = state["T_orig"]
+            step_o = int(np.clip(round(xdata), 0, T_orig - 1))
+            info.append(f"original  : {orig[step_o, j]:.4f}")
+            info.append(f"diff      : {proc[step_p, j] - orig[step_o, j]:+.4f}")
+
+        tooltip.set_text("\n".join(info))
+        tooltip.set_visible(True)
+        for vl in vlines:
+            vl.set_xdata([xdata, xdata])
+            vl.set_visible(True)
+        fig.canvas.draw_idle()
+
+    # ── keyboard handler ──────────────────────────────────────────────────────
     def on_key(event):
-        key     = event.key
-        ep_name = os.path.basename(episodes[state["ep_idx"]])
-        T       = ep_len(episodes[state["ep_idx"]])
-        cs      = state["cut_start"]
-        ce      = state["cut_end"]
-        changed = True
-
-        # ── start-cut controls ──
-        if   key == "[":         cs = max(0, cs - 1)
-        elif key == "]":         cs = min(T - ce - 1, cs + 1)
-        elif key == "{":         cs = max(0, cs - 10)
-        elif key == "}":         cs = min(T - ce - 1, cs + 10)
-        # ── end-cut controls ──
-        elif key == ",":         ce = max(0, ce - 1)
-        elif key == ".":         ce = min(T - cs - 1, ce + 1)
-        elif key == "<":         ce = max(0, ce - 10)
-        elif key == ">":         ce = min(T - cs - 1, ce + 10)
-        # ── navigation ──
-        elif key in ("right", "d", "n"):
-            set_cuts(ep_name, cs, ce)
-            state["ep_idx"] = (state["ep_idx"] + 1) % len(episodes)
-            new_name = os.path.basename(episodes[state["ep_idx"]])
-            state["cut_start"], state["cut_end"] = get_cuts(new_name)
+        key = event.key
+        if key in ("right", "d", "n"):
+            state["ep_idx"] = (state["ep_idx"] + 1) % len(proc_episodes)
         elif key in ("left", "a", "p"):
-            set_cuts(ep_name, cs, ce)
-            state["ep_idx"] = (state["ep_idx"] - 1) % len(episodes)
-            new_name = os.path.basename(episodes[state["ep_idx"]])
-            state["cut_start"], state["cut_end"] = get_cuts(new_name)
-        # ── save / export ──
-        elif key == "w":
-            set_cuts(ep_name, cs, ce)
-            save_cuts(cuts, args.cuts)
-            changed = False
+            state["ep_idx"] = (state["ep_idx"] - 1) % len(proc_episodes)
         elif key == "s":
+            ep_name = os.path.basename(proc_episodes[state["ep_idx"]])
             out = os.path.splitext(ep_name)[0] + "_traj.png"
             fig.savefig(out, dpi=150, bbox_inches="tight",
                         facecolor=fig.get_facecolor())
             print(f"Figure saved → {out}")
-            changed = False
+            return
         elif key in ("q", "escape"):
             plt.close(fig)
             return
         else:
             return
+        redraw(fig, axes, lines_orig, lines_proc,
+               proc_episodes, args.original, state)
 
-        if key not in ("right", "d", "n", "left", "a", "p"):
-            state["cut_start"] = cs
-            state["cut_end"]   = ce
-
-        if changed:
-            state["scatters"], state["cut_spans"] = redraw(
-                fig, axes, lines_raw, lines_smooth,
-                state["scatters"], state["cut_spans"],
-                episodes, state, args.window, args.poly, do_smooth,
-                args.spike_thresh
-            )
-
+    redraw(fig, axes, lines_orig, lines_proc,
+           proc_episodes, args.original, state)
+    fig.canvas.mpl_connect("motion_notify_event", on_motion)
     fig.canvas.mpl_connect("key_press_event", on_key)
     plt.show()
 
