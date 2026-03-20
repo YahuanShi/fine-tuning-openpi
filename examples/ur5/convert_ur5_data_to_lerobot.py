@@ -48,7 +48,7 @@ import shutil
 # ── Redirect LeRobot storage to openpi/dataset/ ──────────────────────────────
 # Must be done BEFORE importing lerobot (HF_LEROBOT_HOME is read at import time).
 _OPENPI_ROOT = Path(os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..")))
-_TODAY = datetime.datetime.now(tz=datetime.timezone.utc).date().strftime("%Y%m%d")
+_TODAY = datetime.datetime.now(tz=datetime.UTC).date().strftime("%Y%m%d")
 _DEFAULT_REPO_ID = f"ur5_dataset_{_TODAY}"
 
 os.environ.setdefault("HF_LEROBOT_HOME", str(_OPENPI_ROOT / "dataset"))
@@ -178,13 +178,15 @@ def convert(raw_dir: Path, repo_id: str, fps: int) -> None:
                     "joints": joints_rad[t],  # float32 (6,)
                     "gripper": gripper_pi05[t],  # float32 (1,)
                     "actions": actions[t],  # float32 (7,)
-                    "task": prompt,
                 }
             )
 
-        dataset.save_episode()
+        # task= is stored per-episode and becomes the LeRobot "task" / "prompt" field
+        dataset.save_episode(task=prompt)
         print(f"    Saved {n_steps} steps, prompt: '{prompt[:60]}'")
 
+    # ── Finalise ─────────────────────────────────────────────────────────────
+    dataset.consolidate(run_compute_stats=True)
     print(f"\nDataset saved to {output_path}")
 
 
