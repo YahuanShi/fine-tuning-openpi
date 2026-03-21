@@ -4,3 +4,6 @@
 [submodule "third_party/libero"]
 	path = third_party/libero
 	url = https://github.com/Lifelong-Robot-Learning/LIBERO.git
+[submodule "data_processing"]
+	path = data_processing
+	url = git@github.com:YahuanShi/data_processing.git
