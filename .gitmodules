@@ -7,3 +7,6 @@
 [submodule "data_processing"]
 	path = data_processing
 	url = git@github.com:YahuanShi/data_processing.git
+[submodule "teleoperation"]
+	path = teleoperation
+	url = git@github.com:YahuanShi/teleoperation.git
