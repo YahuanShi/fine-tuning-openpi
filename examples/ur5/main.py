@@ -11,7 +11,7 @@ Prerequisites:
     2. Ensure all hardware is connected:
            UR5 @ 10.0.0.1 (Ethernet)
            Weiss CRG gripper @ /dev/ttyACM0
-           RealSense D415 exterior (serial 105422060444)
+           RealSense D415 exterior (serial 105422061000)
            RealSense D405 wrist    (serial 352122273671)
 
 Usage:
@@ -42,10 +42,10 @@ class Args:
 
     # How many actions from each chunk to execute before re-querying the policy.
     # Lower = more responsive but more inference calls. Pi0 action_horizon = 50.
-    action_horizon: int = 10
+    action_horizon: int = 8
 
     # Episode settings
-    num_episodes: int = 1
+    num_episodes: int = 10
     max_episode_steps: int = 200  # ~20 s at 10 Hz
 
     # Robot control rate (Hz). Must be ≤ your policy server throughput.

@@ -4,7 +4,7 @@ UR5 real-robot environment for Pi0/Pi0.5 inference.
 Hardware:
     - UR5 @ 10.0.0.1 (RTDE)
     - Weiss CRG 30-050 gripper @ /dev/ttyACM0
-    - RealSense D415 exterior  (serial 105422060444)
+    - RealSense D415 exterior  (serial 105422061000)
     - RealSense D405 wrist     (serial 352122273671)
 
 Observation dict (keys consumed by UR5Inputs):
@@ -50,8 +50,8 @@ HOME_RAD = np.radians(HOME_DEG)
 
 SERVO_J_TIME = 0.1  # s per step (must match 1/CONTROL_HZ)
 SERVO_J_LOOKAHEAD = 0.2  # s look-ahead — servoJ's primary smoothing knob; higher = smoother
-SERVO_J_GAIN = 100
-MAX_JOINT_VEL = 0.08  # rad/s safety clamp
+SERVO_J_GAIN = 200
+MAX_JOINT_VEL = 0.8  # rad/s safety clamp — training data peaks at ~1.03 rad/s
 
 
 # ══════════════════════════════ Gripper ══════════════════════════════
@@ -235,18 +235,29 @@ class UR5Environment(_environment.Environment):
 
         # ── state ─────────────────────────────────────────────────
         self._last_cmd_rad = HOME_RAD.copy()
+        self._is_first_reset = True
 
     # ── Environment interface ──────────────────────────────────────────────
 
     @override
     def reset(self) -> None:
-        """Move UR5 to home, home the gripper."""
-        log.info("[UR5] Resetting to home position...")
-        self._rtde_c.moveJ(HOME_RAD.tolist(), speed=0.5, acceleration=0.5)
-        self._last_cmd_rad = HOME_RAD.copy()
-        self._gripper.home()
+        try:
+            self._rtde_c.servoStop()
+        except Exception:
+            pass
+        time.sleep(0.2)
+        if self._is_first_reset:
+            log.info("[UR5] First reset — moving to home position...")
+            self._rtde_c.moveJ(HOME_RAD.tolist(), speed=0.5, acceleration=0.5)
+            self._last_cmd_rad = HOME_RAD.copy()
+            self._gripper.home()
+            self._is_first_reset = False
+        else:
+            log.info("[UR5] In-place reset — opening gripper...")
+            self._last_cmd_rad = np.array(self._rtde_r.getActualQ(), dtype=np.float64)[:6]
+            self._gripper.move_to_pos(GRIPPER_MAX_MM)
         self._last_gripper_open = True
-        log.info("[UR5] Reset complete.")
+        log.info("[UR5] Ready.")
 
     @override
     def is_episode_complete(self) -> bool:
