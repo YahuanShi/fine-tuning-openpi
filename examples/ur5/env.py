@@ -18,6 +18,7 @@ Action dict (produced by UR5Outputs after AbsoluteActions):
     actions    (7,) float32         [6 joint angles rad (absolute), gripper 0/1]
 """
 
+import contextlib
 import logging
 import threading
 import time
@@ -241,10 +242,8 @@ class UR5Environment(_environment.Environment):
 
     @override
     def reset(self) -> None:
-        try:
+        with contextlib.suppress(Exception):
             self._rtde_c.servoStop()
-        except Exception:
-            pass
         time.sleep(0.2)
         if self._is_first_reset:
             log.info("[UR5] First reset — moving to home position...")
