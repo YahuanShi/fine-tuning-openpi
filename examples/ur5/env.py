@@ -157,7 +157,7 @@ class WeissCRGGripper:
             self._send("PDOUT=[03,00]", 0.2)  # close
 
     def get_width(self) -> float:
-        self._read_pdin(timeout=0.5)
+        self._read_pdin(timeout=0.08)
         return self._position_mm
 
     def close(self) -> None:
