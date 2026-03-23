@@ -1011,14 +1011,14 @@ _CONFIGS = [
             action_expert_variant="gemma_300m_lora",
         ),
         data=LeRobotUR5DataConfig(
-            repo_id="ur3_dataset_20260318",
+            repo_id="ur5_dataset_20260323",
             base_config=DataConfig(prompt_from_task=True),
         ),
         batch_size=32,
         lr_schedule=_optimizer.CosineDecaySchedule(
             warmup_steps=1_000,
             peak_lr=5e-5,
-            decay_steps=50_000,
+            decay_steps=20_000,
             decay_lr=1e-6,
         ),
         optimizer=_optimizer.AdamW(clip_gradient_norm=1.0),
@@ -1027,7 +1027,7 @@ _CONFIGS = [
             paligemma_variant="gemma_2b_lora", action_expert_variant="gemma_300m_lora"
         ).get_freeze_filter(),
         weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi05_base/params"),
-        num_train_steps=50_000,
+        num_train_steps=20_000,
     ),
     TrainConfig(
         name="pi0_ur5_lora",
