@@ -42,7 +42,7 @@ class Args:
 
     # How many actions from each chunk to execute before re-querying the policy.
     # Lower = more responsive but more inference calls. Pi0 action_horizon = 50.
-    action_horizon: int = 8
+    action_horizon: int = 10
 
     # Episode settings
     num_episodes: int = 10
