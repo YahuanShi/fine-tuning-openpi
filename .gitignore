@@ -170,5 +170,6 @@ cython_debug/
 dataset/
 dataset/
 data-processing/
+training_data/
 
 Git_guide/
