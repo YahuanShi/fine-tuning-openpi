@@ -1011,7 +1011,7 @@ _CONFIGS = [
             action_expert_variant="gemma_300m_lora",
         ),
         data=LeRobotUR5DataConfig(
-            repo_id="ur5_dataset_20260323",
+            repo_id="ur5_dataset_20260331",
             base_config=DataConfig(prompt_from_task=True),
         ),
         batch_size=32,
@@ -1028,6 +1028,8 @@ _CONFIGS = [
         ).get_freeze_filter(),
         weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi05_base/params"),
         num_train_steps=20_000,
+        save_interval=2000,
+        keep_period=5000,
     ),
     TrainConfig(
         name="pi0_ur5_lora",

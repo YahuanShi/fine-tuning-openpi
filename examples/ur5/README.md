@@ -1,142 +1,191 @@
-# UR5 Example
+# UR5 Pi0.5 Fine-Tuning Pipeline
 
-Below we provide an outline of how to implement the key components mentioned in the "Finetune on your data" section of the [README](../README.md) for finetuning on UR5 datasets.
+Complete pipeline for fine-tuning Pi0.5 on a UR5 pick-and-place task.
 
-First, we will define the `UR5Inputs` and `UR5Outputs` classes, which map the UR5 environment to the model and vice versa. Check the corresponding files in `src/openpi/policies/libero_policy.py` for comments explaining each line.
+**Hardware:**
+- UR5e robot arm
+- Weiss CRG gripper (serial `/dev/ttyACM0`)
+- RealSense D415 exterior camera (serial `105422061000`)
+- RealSense D405 wrist camera (serial `352122273671`)
+- GPU: NVIDIA RTX 6000 48GB
 
-```python
+---
 
-@dataclasses.dataclass(frozen=True)
-class UR5Inputs(transforms.DataTransformFn):
+## Step 1 — Convert Dataset
 
-    model_type: _model.ModelType = _model.ModelType.PI0
+Raw HDF5 episodes → LeRobot format.
 
-    def __call__(self, data: dict) -> dict:
-        # First, concatenate the joints and gripper into the state vector.
-        state = np.concatenate([data["joints"], data["gripper"]])
-
-        # Possibly need to parse images to uint8 (H,W,C) since LeRobot automatically
-        # stores as float32 (C,H,W), gets skipped for policy inference.
-        base_image = _parse_image(data["base_rgb"])
-        wrist_image = _parse_image(data["wrist_rgb"])
-
-        # Create inputs dict.
-        inputs = {
-            "state": state,
-            "image": {
-                "base_0_rgb": base_image,
-                "left_wrist_0_rgb": wrist_image,
-                # Since there is no right wrist, replace with zeros
-                "right_wrist_0_rgb": np.zeros_like(base_image),
-            },
-            "image_mask": {
-                "base_0_rgb": np.True_,
-                "left_wrist_0_rgb": np.True_,
-                # Since the "slot" for the right wrist is not used, this mask is set
-                # to False
-                "right_wrist_0_rgb": np.True_ if self.model_type == _model.ModelType.PI0_FAST else np.False_,
-            },
-        }
-
-        if "actions" in data:
-            inputs["actions"] = data["actions"]
-
-        # Pass the prompt (aka language instruction) to the model.
-        if "prompt" in data:
-            inputs["prompt"] = data["prompt"]
-
-        return inputs
-
-
-@dataclasses.dataclass(frozen=True)
-class UR5Outputs(transforms.DataTransformFn):
-
-    def __call__(self, data: dict) -> dict:
-        # Since the robot has 7 action dimensions (6 DoF + gripper), return the first 7 dims
-        return {"actions": np.asarray(data["actions"][:, :7])}
-
+```bash
+HF_LEROBOT_HOME=$(pwd)/training_data uv run examples/ur5/convert_ur5_data_to_lerobot.py \
+    --raw-dir processed_data/trimmed/<DATE> \
+    --repo-id ur5_dataset_<DATE>
 ```
 
-Next, we will define the `UR5DataConfig` class, which defines how to process raw UR5 data from LeRobot dataset for training. For a full example, see the `LeRobotLiberoDataConfig` config in the [training config file](https://github.com/physical-intelligence/openpi/blob/main/src/openpi/training/config.py).
+- `--fps` is optional: auto-detected from the `hz` attribute in each HDF5 file
+- Output is written to `training_data/ur5_dataset_<DATE>/`
+- Raw HDF5 and output **must not share the same directory** — the script deletes the output dir before writing
 
-```python
-
-@dataclasses.dataclass(frozen=True)
-class LeRobotUR5DataConfig(DataConfigFactory):
-
-    @override
-    def create(self, assets_dirs: pathlib.Path, model_config: _model.BaseModelConfig) -> DataConfig:
-        # Boilerplate for remapping keys from the LeRobot dataset. We assume no renaming needed here.
-        repack_transform = _transforms.Group(
-            inputs=[
-                _transforms.RepackTransform(
-                    {
-                        "base_rgb": "image",
-                        "wrist_rgb": "wrist_image",
-                        "joints": "joints",
-                        "gripper": "gripper",
-                        "prompt": "prompt",
-                    }
-                )
-            ]
-        )
-
-        # These transforms are the ones we wrote earlier.
-        data_transforms = _transforms.Group(
-            inputs=[UR5Inputs(action_dim=model_config.action_dim, model_type=model_config.model_type)],
-            outputs=[UR5Outputs()],
-        )
-
-        # Convert absolute actions to delta actions.
-        # By convention, we do not convert the gripper action (7th dimension).
-        delta_action_mask = _transforms.make_bool_mask(6, -1)
-        data_transforms = data_transforms.push(
-            inputs=[_transforms.DeltaActions(delta_action_mask)],
-            outputs=[_transforms.AbsoluteActions(delta_action_mask)],
-        )
-
-        # Model transforms include things like tokenizing the prompt and action targets
-        # You do not need to change anything here for your own dataset.
-        model_transforms = ModelTransformFactory()(model_config)
-
-        # We return all data transforms for training and inference. No need to change anything here.
-        return dataclasses.replace(
-            self.create_base_config(assets_dirs),
-            repack_transforms=repack_transform,
-            data_transforms=data_transforms,
-            model_transforms=model_transforms,
-        )
-
+**HDF5 format expected:**
+```
+episode_N.hdf5
+  attrs:  hz, prompt
+  /observations/qpos         (T, 7)   joints in degrees [0:6] + gripper [6] in {0,1}
+  /observations/images/exterior_image_1_left  (T, H, W, 3)  uint8
+  /observations/images/wrist_image_left       (T, H, W, 3)  uint8
+  /action                    (T, 7)   same layout as qpos
 ```
 
-Finally, we define the TrainConfig for our UR5 dataset. Here, we define a config for fine-tuning pi0 on our UR5 dataset. See the [training config file](https://github.com/physical-intelligence/openpi/blob/main/src/openpi/training/config.py) for more examples, e.g. for pi0-FAST or for LoRA fine-tuning.
+The script converts joints from degrees to radians and inverts the gripper convention (`gripper_pi05 = 1 - gripper_raw`) to match Pi0.5 (0=open, 1=closed).
+
+---
+
+## Step 2 — Update Training Config
+
+Edit `src/openpi/training/config.py`, find the `pi05_ur5` TrainConfig and set `repo_id` to the new dataset:
 
 ```python
 TrainConfig(
-    name="pi0_ur5",
-    model=pi0.Pi0Config(),
-    data=LeRobotUR5DataConfig(
-        repo_id="your_username/ur5_dataset",
-        # This config lets us reload the UR5 normalization stats from the base model checkpoint.
-        # Reloading normalization stats can help transfer pre-trained models to new environments.
-        # See the [norm_stats.md](../docs/norm_stats.md) file for more details.
-        assets=AssetsConfig(
-            assets_dir="gs://openpi-assets/checkpoints/pi0_base/assets",
-            asset_id="ur5e",
-        ),
-        base_config=DataConfig(
-            # This flag determines whether we load the prompt (i.e. the task instruction) from the
-            # ``task`` field in the LeRobot dataset. The recommended setting is True.
-            prompt_from_task=True,
-        ),
+    name="pi05_ur5",
+    model=pi0_config.Pi0Config(
+        pi05=True,
+        action_horizon=10,
+        discrete_state_input=False,
+        paligemma_variant="gemma_2b_lora",
+        action_expert_variant="gemma_300m_lora",
     ),
-    # Load the pi0 base model checkpoint.
-    weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi0_base/params"),
-    num_train_steps=30_000,
+    data=LeRobotUR5DataConfig(
+        repo_id="ur5_dataset_<DATE>",          # <-- update this
+        base_config=DataConfig(prompt_from_task=True),
+    ),
+    batch_size=32,
+    lr_schedule=_optimizer.CosineDecaySchedule(
+        warmup_steps=1_000,
+        peak_lr=5e-5,
+        decay_steps=50_000,
+        decay_lr=1e-6,
+    ),
+    optimizer=_optimizer.AdamW(clip_gradient_norm=1.0),
+    ema_decay=None,
+    freeze_filter=pi0_config.Pi0Config(
+        paligemma_variant="gemma_2b_lora",
+        action_expert_variant="gemma_300m_lora",
+    ).get_freeze_filter(),
+    weight_loader=weight_loaders.CheckpointWeightLoader(
+        "gs://openpi-assets/checkpoints/pi05_base/params"
+    ),
+    num_train_steps=20_000,
 )
 ```
 
+**Notes:**
+- LoRA is required — full fine-tuning exceeds 48GB on RTX 6000
+- `ema_decay=None` — EMA adds ~12.5GB and causes OOM
+- `batch_size=32` — stable at ~41GB VRAM
 
+---
 
+## Step 3 — Compute Norm Stats
 
+```bash
+HF_LEROBOT_HOME=$(pwd)/training_data uv run scripts/compute_norm_stats.py --config-name pi05_ur5
+```
 
+Output is written to `assets/pi05_ur5/ur5_dataset_<DATE>/norm_stats.json`.
+
+**Note:** Set `HF_LEROBOT_HOME=$(pwd)/training_data` so the training script finds the converted dataset.
+
+---
+
+## Step 4 — Train
+
+```bash
+HF_LEROBOT_HOME=$(pwd)/training_data XLA_PYTHON_CLIENT_MEM_FRACTION=0.95 \
+uv run scripts/train.py pi05_ur5 \
+    --exp-name ur5_pick_place_<VERSION> \
+    --overwrite
+```
+
+To resume an interrupted training:
+```bash
+HF_LEROBOT_HOME=$(pwd)/training_data XLA_PYTHON_CLIENT_MEM_FRACTION=0.95 \
+uv run scripts/train.py pi05_ur5 \
+    --exp-name ur5_pick_place_<VERSION> \
+    --resume
+```
+
+Checkpoints are saved to `checkpoints/pi05_ur5/ur5_pick_place_<VERSION>/<STEP>/`.
+
+**Convergence indicators:**
+- `loss` stabilises around `0.0006–0.001`
+- `grad_norm` stabilises around `0.01–0.05`
+- Typically converges at 20k–33k steps (~8–12 hours on RTX 6000)
+
+**One-command pipeline (convert + norm stats + train):**
+```bash
+./train_pipeline.sh \
+    --raw-dir processed_data/trimmed/<DATE> \
+    --repo-id ur5_dataset_<DATE> \
+    --exp-name ur5_pick_place_<VERSION>
+```
+
+---
+
+## Step 5 — Serve Policy
+
+Start the policy server (Terminal 1):
+
+```bash
+uv run scripts/serve_policy.py policy:checkpoint \
+    --policy.config pi05_ur5 \
+    --policy.dir checkpoints/pi05_ur5/ur5_pick_place_<VERSION>/<STEP>
+```
+
+First inference takes ~60s (JAX JIT compilation). Subsequent inferences take ~300–500ms.
+
+**Important:** The norm stats inside the checkpoint must match `repo_id` in config. If testing an older checkpoint with a different `repo_id`, copy the correct norm stats:
+```bash
+cp -r checkpoints/pi05_ur5/<EXP>/<STEP>/assets/<ORIGINAL_DATASET> \
+       checkpoints/pi05_ur5/<EXP>/<STEP>/assets/<CURRENT_REPO_ID>
+```
+
+---
+
+## Step 6 — Run Inference on Robot
+
+Start inference client (Terminal 2):
+
+```bash
+PYTHONPATH=. uv run examples/ur5/main.py \
+    --prompt "pick yellow cube and place it into red box"
+```
+
+Key parameters in `main.py`:
+| Parameter | Value | Notes |
+|---|---|---|
+| `action_horizon` | `10` | Max actions per inference call (model limit) |
+| `num_episodes` | `10` | Number of consecutive pick-and-place cycles |
+| `control_hz` | `10.0` | Must match training data frequency |
+
+**Note:** Policy server must be running before starting inference. Shut down the server before starting training — both processes cannot share the GPU.
+
+---
+
+## Hardware Constants (env.py)
+
+| Constant | Value | Description |
+|---|---|---|
+| `UR5_IP` | `10.0.0.1` | UR5 RTDE IP address |
+| `GRIPPER_PORT` | `/dev/ttyACM0` | Weiss CRG serial port |
+| `HOME_DEG` | `[45, -20, -140, -40, -270, 0]` | Home joint angles (degrees) |
+| `MAX_JOINT_VEL` | `0.8 rad/s` | Safety velocity clamp |
+| `SERVO_J_LOOKAHEAD` | `0.2 s` | servoJ smoothing |
+| `CAM_SERIAL_BASE` | `105422061000` | D415 exterior camera |
+| `CAM_SERIAL_WRIST` | `352122273671` | D405 wrist camera |
+
+---
+
+## Known Limitations
+
+- **Motion stops every ~1s:** Synchronous inference — robot waits for next action chunk. Irreducible without async prefetching.
+- **No validation during training:** Only train loss and grad_norm are logged. Evaluate by running inference on hardware.
+- **Norm stats must match checkpoint:** Always ensure `config.repo_id` matches the dataset the checkpoint was trained on.

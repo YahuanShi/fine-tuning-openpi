@@ -168,8 +168,6 @@ cython_debug/
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 #.idea/
 dataset/
-dataset/
-data-processing/
 training_data/
-
-Git_guide/
+docs/Git_guide.md
+docs/OPENPI_DATA_HOME_GUIDE.md
