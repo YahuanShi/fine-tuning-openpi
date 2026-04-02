@@ -52,7 +52,7 @@ if [[ $SKIP_CONVERT -eq 0 && -z "$RAW_DIR" ]]; then
     exit 1
 fi
 
-export HF_LEROBOT_HOME="$SCRIPT_DIR/dataset"
+export HF_LEROBOT_HOME="$SCRIPT_DIR/training_data"
 
 echo "========================================================"
 echo " UR5 Fine-Tuning Pipeline"
@@ -70,8 +70,7 @@ if [[ $SKIP_CONVERT -eq 0 ]]; then
     echo "[1/3] Converting HDF5 → LeRobot dataset..."
     uv run examples/ur5/convert_ur5_data_to_lerobot.py \
         --raw-dir "$RAW_DIR" \
-        --repo-id "$REPO_ID" \
-        --fps "$FPS"
+        --repo-id "$REPO_ID"
     echo "[1/3] Done."
 else
     echo "[1/3] Skipped (--skip-convert)."

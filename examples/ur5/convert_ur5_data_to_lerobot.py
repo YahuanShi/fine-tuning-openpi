@@ -48,7 +48,7 @@ import shutil
 # ── Redirect LeRobot storage to openpi/dataset/ ──────────────────────────────
 # Must be done BEFORE importing lerobot (HF_LEROBOT_HOME is read at import time).
 _OPENPI_ROOT = Path(os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..")))
-_TODAY = datetime.datetime.now(tz=datetime.UTC).date().strftime("%Y%m%d")
+_TODAY = datetime.datetime.now(tz=datetime.timezone.utc).date().strftime("%Y%m%d")
 _DEFAULT_REPO_ID = f"ur5_dataset_{_TODAY}"
 
 os.environ.setdefault("HF_LEROBOT_HOME", str(_OPENPI_ROOT / "dataset"))
@@ -83,17 +83,25 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument(
         "--fps",
         type=int,
-        default=DEFAULT_FPS,
-        help="Recording frequency (must match --hz used during data collection)",
+        default=None,
+        help="Recording frequency. If omitted, auto-detected from dataset 'hz' attribute.",
     )
     return p
 
 
-def convert(raw_dir: Path, repo_id: str, fps: int) -> None:
+def convert(raw_dir: Path, repo_id: str, fps: int | None) -> None:
     hdf5_files = sorted(raw_dir.glob("episode_*.hdf5"))
     if not hdf5_files:
         raise FileNotFoundError(f"No episode_*.hdf5 files found in {raw_dir}")
     print(f"Found {len(hdf5_files)} episode(s) in {raw_dir}")
+
+    # Auto-detect fps from first episode if not specified
+    if fps is None:
+        with h5py.File(hdf5_files[0], "r") as f:
+            fps = int(f.attrs.get("hz", DEFAULT_FPS))
+        print(f"Auto-detected fps={fps} from dataset attrs")
+    else:
+        print(f"Using fps={fps}")
 
     # ── Clean up existing dataset ─────────────────────────────────────────────
     output_path = HF_LEROBOT_HOME / repo_id
