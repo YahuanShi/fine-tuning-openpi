@@ -48,7 +48,7 @@ import shutil
 # ── Redirect LeRobot storage to openpi/dataset/ ──────────────────────────────
 # Must be done BEFORE importing lerobot (HF_LEROBOT_HOME is read at import time).
 _OPENPI_ROOT = Path(os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..")))
-_TODAY = datetime.datetime.now(tz=datetime.timezone.utc).date().strftime("%Y%m%d")
+_TODAY = datetime.datetime.now(tz=datetime.UTC).date().strftime("%Y%m%d")
 _DEFAULT_REPO_ID = f"ur5_dataset_{_TODAY}"
 
 os.environ.setdefault("HF_LEROBOT_HOME", str(_OPENPI_ROOT / "dataset"))
