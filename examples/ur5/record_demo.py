@@ -183,8 +183,8 @@ def _draw_overlay(
         cv2.addWeighted(dark, _ALPHA, roi, 1 - _ALPHA, 0, roi)
         vis[y0:y1, 0:w] = roi
 
-    _bar(0, _BAR_H)           # top bar
-    _bar(h - _BAR_H, h)       # bottom bar
+    _bar(0, _BAR_H)  # top bar
+    _bar(h - _BAR_H, h)  # bottom bar
 
     # ── top-left: blinking REC dot + label ───────────────────────────────
     cx, cy = 16, _BAR_H // 2
@@ -323,10 +323,7 @@ def main(args: Args) -> None:
 
         duration = time.monotonic() - t_start
         summary_fps = frame_count / duration if duration > 0 else 0
-        log.info(
-            f"[Recorder] Saved {frame_count} frames ({duration:.1f}s, "
-            f"{summary_fps:.1f} fps actual) → {out_path}"
-        )
+        log.info(f"[Recorder] Saved {frame_count} frames ({duration:.1f}s, {summary_fps:.1f} fps actual) → {out_path}")
 
 
 if __name__ == "__main__":
