@@ -144,6 +144,8 @@ unfixable = [
 "teleoperation/data_collection/episode_recorder.py" = ["N806", "FBT001", "FBT003"]
 # test_ur5.py: zip strict= not needed in a standalone test script
 "teleoperation/uarm/scripts/UR5/test_ur5.py" = ["B905"]
+# record_demo.py: rec_visible bool arg is intentional in a private OSD helper
+"examples/ur5/record_demo.py" = ["FBT001"]
 
 [tool.ruff.lint.isort]
 force-single-line = true
