@@ -13,13 +13,13 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
-export HF_LEROBOT_HOME="$SCRIPT_DIR/training_data"
+export HF_LEROBOT_HOME="$SCRIPT_DIR/dataset/for_training"
 
 log() { echo ""; echo "════════════════════════════════════════"; echo " $*"; echo "════════════════════════════════════════"; }
 
 # ── Job definitions ───────────────────────────────────────────────────────────
-declare -a RAW_DIRS=("processed_data/trimmed/20260402_assembly"
-                     "processed_data/trimmed/20260402_pnpa")
+declare -a RAW_DIRS=("dataset/processed/trimmed/20260402_assembly"
+                     "dataset/processed/trimmed/20260402_pnpa")
 declare -a REPO_IDS=("ur5_dataset_20260402_assembly"
                      "ur5_dataset_20260402_pnpa")
 declare -a CONFIGS=("pi05_ur5_assembly"
