@@ -27,7 +27,7 @@ Conversions applied here:
     action_rad   = deg2rad(action[:, :6])
     act_grip     = 1.0 - action[:, 6]    ← invert convention
 
-Output is saved to openpi/dataset/<repo-id>/ (next to the raw HDF5 files).
+Output is saved to openpi/dataset/for_training/<repo-id>/.
 
 Usage:
     # Convert today's recording (defaults auto-match episode_recorder.py paths):
@@ -51,7 +51,7 @@ _OPENPI_ROOT = Path(os.path.abspath(os.path.join(os.path.dirname(os.path.abspath
 _TODAY = datetime.datetime.now(tz=datetime.UTC).date().strftime("%Y%m%d")
 _DEFAULT_REPO_ID = f"ur5_dataset_{_TODAY}"
 
-os.environ.setdefault("HF_LEROBOT_HOME", str(_OPENPI_ROOT / "dataset"))
+os.environ.setdefault("HF_LEROBOT_HOME", str(_OPENPI_ROOT / "dataset" / "for_training"))
 
 import h5py  # noqa: E402
 from lerobot.common.datasets.lerobot_dataset import HF_LEROBOT_HOME  # noqa: E402

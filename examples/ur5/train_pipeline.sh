@@ -2,7 +2,7 @@
 # UR5 fine-tuning pipeline: convert → norm stats → train
 #
 # Usage:
-#   ./train_pipeline.sh --raw-dir dataset/ur5_dataset_20260323_raw --repo-id ur5_dataset_20260323 --exp-name ur5_pick_place_v3
+#   ./examples/ur5/train_pipeline.sh --raw-dir dataset/2_processed/no_front/<DATE> --repo-id ur5_dataset_<DATE> --exp-name ur5_pick_place_<VERSION>
 #
 # All flags:
 #   --raw-dir    DIR    Directory containing episode_*.hdf5 files  (required)
@@ -16,7 +16,8 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-cd "$SCRIPT_DIR"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+cd "$PROJECT_ROOT"
 
 # ── Defaults ─────────────────────────────────────────────────────────────────
 RAW_DIR=""
@@ -52,7 +53,7 @@ if [[ $SKIP_CONVERT -eq 0 && -z "$RAW_DIR" ]]; then
     exit 1
 fi
 
-export HF_LEROBOT_HOME="$SCRIPT_DIR/training_data"
+export HF_LEROBOT_HOME="$PROJECT_ROOT/dataset/for_training"
 
 echo "========================================================"
 echo " UR5 Fine-Tuning Pipeline"

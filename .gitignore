@@ -171,3 +171,6 @@ dataset/
 training_data/
 docs/Git_guide.md
 docs/OPENPI_DATA_HOME_GUIDE.md
+launch.md
+train_sequential.sh
+VLA-Data-Pipeline-main

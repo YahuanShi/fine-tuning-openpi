@@ -45,8 +45,8 @@ class Args:
     action_horizon: int = 10
 
     # Episode settings
-    num_episodes: int = 10
-    max_episode_steps: int = 200  # ~20 s at 10 Hz
+    num_episodes: int = 100
+    max_episode_steps: int = 400  # ~40 s at 10 Hz
 
     # Robot control rate (Hz). Must be ≤ your policy server throughput.
     control_hz: float = 10.0
