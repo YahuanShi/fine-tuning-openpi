@@ -1011,7 +1011,7 @@ _CONFIGS = [
             action_expert_variant="gemma_300m_lora",
         ),
         data=LeRobotUR5DataConfig(
-            repo_id="ur5_dataset_20260402",
+            repo_id="ur5_dataset_20260415",
             base_config=DataConfig(prompt_from_task=True),
         ),
         batch_size=32,
