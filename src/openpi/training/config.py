@@ -5,6 +5,7 @@ from collections.abc import Sequence
 import dataclasses
 import difflib
 import logging
+import os
 import pathlib
 from typing import Any, Literal, Protocol, TypeAlias
 
@@ -1011,7 +1012,7 @@ _CONFIGS = [
             action_expert_variant="gemma_300m_lora",
         ),
         data=LeRobotUR5DataConfig(
-            repo_id="ur5_dataset_20260415",
+            repo_id=os.environ["UR5_REPO_ID"],
             base_config=DataConfig(prompt_from_task=True),
         ),
         batch_size=32,

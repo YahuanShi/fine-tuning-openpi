@@ -39,7 +39,7 @@ Fine-Tuning-Pi0.5/
 
 | Config 名称 | repo_id（LeRobot 数据集） | 任务类型 | 主要 checkpoint |
 |-------------|--------------------------|----------|----------------|
-| `pi05_ur5` | `ur5_dataset_20260415` | pick-and-place | `ur5_pick_place_20260415/19999` |
+| `pi05_ur5` | 由 `UR5_REPO_ID` 环境变量指定 | pick-and-place | `ur5_pick_place_20260415/19999` |
 | `pi05_ur5_assembly` | `ur5_dataset_20260402_assembly` | assembly | `ur5_pick_place_assembly_v1/19999` |
 | `pi05_ur5_pnpa` | `ur5_dataset_20260402_pnpa` | pick-and-place-and-arrange | `ur5_pnpa_v2/19999` |
 
@@ -73,17 +73,22 @@ HF_LEROBOT_HOME=$(pwd)/dataset/for_training \
 uv run examples/ur5/convert_ur5_data_to_lerobot.py \
     --raw-dir dataset/processed/trimmed/<DATE> \
     --repo-id ur5_dataset_<DATE> \
-    --fps 20
+    --fps 20 \
+    --overwrite
 ```
 
-> **注意**：`--raw-dir` 和输出目录必须不同路径，否则原始数据会被覆盖删除。
+> **注意**：
+> - `--raw-dir` 和输出目录必须不同路径，否则原始数据会被覆盖删除
+> - `--overwrite` 为显式覆盖开关，不加则输出目录已存在时报错退出
+> - 转换前自动校验 HDF5 key 结构；空 episode 在结束时统一汇报
 
 ### Step 4：计算 Norm Stats
 ```bash
+UR5_REPO_ID=ur5_dataset_<DATE> \
 HF_LEROBOT_HOME=$(pwd)/dataset/for_training \
 uv run scripts/compute_norm_stats.py --config-name pi05_ur5
 ```
-输出至 `assets/pi05_ur5/<repo_id>/norm_stats.json`
+输出至 `assets/pi05_ur5/ur5_dataset_<DATE>/norm_stats.json`
 
 ---
 
@@ -102,9 +107,19 @@ bash examples/ur5/train_pipeline.sh \
 可选参数：
 - `--skip-convert`：跳过转换（已转换过）
 - `--skip-stats`：跳过 norm stats（已计算过）
+- `--resume`：继续中断的训练（默认为 `--overwrite` 从头开始）
+
+Resume 示例：
+```bash
+bash examples/ur5/train_pipeline.sh \
+    --repo-id ur5_dataset_<DATE> \
+    --exp-name ur5_pick_place_<VERSION> \
+    --resume --skip-convert --skip-stats
+```
 
 ### 仅启动训练
 ```bash
+UR5_REPO_ID=ur5_dataset_<DATE> \
 HF_LEROBOT_HOME=$(pwd)/dataset/for_training \
 XLA_PYTHON_CLIENT_MEM_FRACTION=0.95 \
 uv run scripts/train.py pi05_ur5 \
@@ -112,19 +127,14 @@ uv run scripts/train.py pi05_ur5 \
     --overwrite
 ```
 
-### Resume 训练（继续中断的训练）
+### Resume 训练
 ```bash
+UR5_REPO_ID=ur5_dataset_<DATE> \
 HF_LEROBOT_HOME=$(pwd)/dataset/for_training \
 XLA_PYTHON_CLIENT_MEM_FRACTION=0.95 \
 uv run scripts/train.py pi05_ur5 \
     --exp-name ur5_pick_place_<VERSION> \
     --resume
-```
-
-### 顺序训练多个数据集
-```bash
-bash train_sequential.sh
-# 自动依次训练 assembly 和 pnpa 数据集
 ```
 
 ### 关键训练参数（config.py）
@@ -140,55 +150,56 @@ bash train_sequential.sh
 | `action_horizon` | 10（硬限制） |
 | `ema_decay` | None |
 
+> 每次保存 checkpoint 时，会自动在 `assets/metadata.json` 中记录训练所用的 `repo_id`，供推理时自动匹配。
+
 ---
 
 ## 5. 推理（serve_policy）
 
-### 启动推理服务
+### 启动推理服务（推荐）
+
+使用 `serve.sh`，自动从 checkpoint 的 `assets/metadata.json` 读取 repo_id 并匹配正确的 config，无需手动指定：
 
 ```bash
-# pi05_ur5（pick-and-place，最新）
+./examples/ur5/serve.sh checkpoints/pi05_ur5/ur5_pick_place_20260415/19999
+./examples/ur5/serve.sh checkpoints/pi05_ur5/ur5_pick_place_assembly_v1/19999
+./examples/ur5/serve.sh checkpoints/pi05_ur5/ur5_pnpa_v2/19999
+```
+
+脚本会打印使用的 config 和 repo_id，方便确认。旧 checkpoint（无 metadata.json）会根据路径名自动推断。
+
+### 手动指定（不推荐，需自行确认 config 与 checkpoint 匹配）
+```bash
 uv run scripts/serve_policy.py policy:checkpoint \
     --policy.config pi05_ur5 \
     --policy.dir checkpoints/pi05_ur5/ur5_pick_place_20260415/19999
-
-# pi05_ur5_assembly
-uv run scripts/serve_policy.py policy:checkpoint \
-    --policy.config pi05_ur5_assembly \
-    --policy.dir checkpoints/pi05_ur5/ur5_pick_place_assembly_v1/19999
-
-# pi05_ur5_pnpa
-uv run scripts/serve_policy.py policy:checkpoint \
-    --policy.config pi05_ur5_pnpa \
-    --policy.dir checkpoints/pi05_ur5/ur5_pnpa_v2/19999
 ```
 
 ---
 
 ## 6. 常见问题 & 解决方案
 
-### 问题 1：Norm stats mismatch（FileNotFoundError）
+### 问题 1：convert 时输出目录已存在报错
 
 **现象：**
 ```
-FileNotFoundError: Norm stats file not found at:
-.../checkpoints/.../19999/assets/<NEW_REPO_ID>/norm_stats.json
+FileExistsError: Output already exists: .../for_training/ur5_dataset_xxx
+Use --overwrite to replace it.
 ```
 
-**原因：** `config.py` 中 `repo_id` 更新后，旧 checkpoint 的 assets 目录里只有旧 `repo_id` 对应的 norm stats。
-
-**解决：**
-```bash
-# 将旧 norm stats 复制为新 repo_id 名称
-cp -r checkpoints/pi05_ur5/<EXP_NAME>/19999/assets/<OLD_REPO_ID> \
-       checkpoints/pi05_ur5/<EXP_NAME>/19999/assets/<NEW_REPO_ID>
-```
-
-**规律：** 每次修改 `config.py` 的 `repo_id`，测试老 checkpoint 前必须做此操作。
+**解决：** 加 `--overwrite` 参数。
 
 ---
 
-### 问题 2：训练时 OOM / GPU 显存不足
+### 问题 2：训练时 `KeyError: 'UR5_REPO_ID'`
+
+**原因：** `pi05_ur5` config 的 `repo_id` 现在必须通过环境变量传入，未设置时报错。
+
+**解决：** 在命令前加 `UR5_REPO_ID=ur5_dataset_<DATE>`，或使用 `train_pipeline.sh`（自动设置）。
+
+---
+
+### 问题 3：训练时 OOM / GPU 显存不足
 
 **原因：** 上次训练进程未完全退出，仍占用显存。
 
@@ -197,12 +208,6 @@ cp -r checkpoints/pi05_ur5/<EXP_NAME>/19999/assets/<OLD_REPO_ID> \
 nvidia-smi   # 找到占用进程 PID
 kill -9 <PID>
 ```
-
----
-
-### 问题 3：train_pipeline.sh "No such file or directory"
-
-**原因：** 脚本 `cd` 到错误目录，相对路径失效。已修复（脚本内使用 `PROJECT_ROOT`）。
 
 ---
 
@@ -244,20 +249,18 @@ HF_LEROBOT_HOME=$(pwd)/dataset/for_training uv run ...
 | batch_size | 32 | RTX 6000 48GB 下的最大值 |
 | XLA_PYTHON_CLIENT_MEM_FRACTION | 0.95 | 训练时必须设置 |
 | 夹爪约定 | 0=开，1=闭 | 与 raw 数据相反，已在转换脚本中处理 |
+| servoJ timeout | 500ms × 3次重试 | 相机抓帧超时设置 |
 
 ---
 
 ## 8. 修改 Config 流程
 
-当需要切换数据集时，修改 `src/openpi/training/config.py` 中对应 config 的 `repo_id`：
+`pi05_ur5` 的 `repo_id` 通过环境变量控制，无需修改源码：
 
-```python
-data=LeRobotUR5DataConfig(
-    repo_id="ur5_dataset_<NEW_DATE>",  # 修改此处
-    ...
-),
+```bash
+export UR5_REPO_ID=ur5_dataset_<NEW_DATE>
 ```
 
-修改后：
-1. 重新运行 `compute_norm_stats.py` 生成新 norm stats
-2. 如需测试旧 checkpoint，执行 norm stats 复制（见问题1）
+`pi05_ur5_assembly` 和 `pi05_ur5_pnpa` 的 `repo_id` 写死在 `config.py` 中（变动少）：
+- assembly：`ur5_dataset_20260402_assembly`
+- pnpa：`ur5_dataset_20260402_pnpa`
