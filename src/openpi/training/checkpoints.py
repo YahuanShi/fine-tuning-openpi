@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import concurrent.futures as futures
 import dataclasses
+import json
 import logging
 from typing import Protocol
 
@@ -74,6 +75,8 @@ def save_state(
         norm_stats = data_config.norm_stats
         if norm_stats is not None and data_config.asset_id is not None:
             _normalize.save(directory / data_config.asset_id, norm_stats)
+            metadata = {"repo_id": data_config.asset_id}
+            (directory / "metadata.json").write_text(json.dumps(metadata))
 
     # Split params that can be used for inference into a separate item.
     with at.disable_typechecking():
