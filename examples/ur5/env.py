@@ -253,7 +253,7 @@ class UR5Environment(_environment.Environment):
             self._is_first_reset = False
         else:
             log.info("[UR5] In-place reset — opening gripper...")
-            self._last_cmd_rad = np.array(self._rtde_r.getActualQ(), dtype=np.float64)[:6]
+            self._last_cmd_rad = np.array(self._rtde_r.getActualQ(), dtype=np.float32)[:6]
             self._gripper.move_to_pos(GRIPPER_MAX_MM)
         self._last_gripper_open = True
         log.info("[UR5] Ready.")
@@ -285,7 +285,7 @@ class UR5Environment(_environment.Environment):
 
     @override
     def apply_action(self, action: dict) -> None:
-        acts = np.asarray(action["actions"], dtype=np.float64)
+        acts = np.asarray(action["actions"], dtype=np.float32)
 
         # ── joints: velocity-limited servoJ ──────────────────────
         target_rad = acts[:6]
@@ -305,6 +305,7 @@ class UR5Environment(_environment.Environment):
             )
         except Exception as e:
             log.warning(f"[UR5] servoJ error: {e}")
+            self._last_cmd_rad = np.array(self._rtde_r.getActualQ(), dtype=np.float32)[:6]
 
         # ── gripper: binary open / close ─────────────────────────
         # action[6]: 0 = open, 1 = closed
@@ -335,9 +336,11 @@ class UR5Environment(_environment.Environment):
     # ── helpers ───────────────────────────────────────────────────────────
 
     @staticmethod
-    def _grab_frame(pipeline: rs.pipeline) -> np.ndarray:
-        frames = pipeline.wait_for_frames(timeout_ms=2000)
-        color = frames.get_color_frame()
-        if not color:
-            raise RuntimeError("No color frame from camera")
-        return np.asanyarray(color.get_data())
+    def _grab_frame(pipeline: rs.pipeline, retries: int = 3) -> np.ndarray:
+        for attempt in range(retries):
+            frames = pipeline.wait_for_frames(timeout_ms=500)
+            color = frames.get_color_frame()
+            if color:
+                return np.asanyarray(color.get_data())
+            log.warning(f"[Camera] No color frame, retry {attempt + 1}/{retries}")
+        raise RuntimeError("Camera failed to return a frame after retries")

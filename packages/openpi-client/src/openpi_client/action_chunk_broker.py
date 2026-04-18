@@ -28,6 +28,10 @@ class ActionChunkBroker(_base_policy.BasePolicy):
         if self._last_results is None:
             self._last_results = self._policy.infer(obs)
             self._cur_step = 0
+            first = next(v for v in self._last_results.values() if isinstance(v, np.ndarray))
+            assert first.shape[0] >= self._action_horizon, (
+                f"Policy returned {first.shape[0]} steps, expected >={self._action_horizon}"
+            )
 
         def slicer(x):
             if isinstance(x, np.ndarray):

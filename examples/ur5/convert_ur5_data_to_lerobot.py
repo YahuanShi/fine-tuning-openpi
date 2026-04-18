@@ -86,10 +86,15 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Recording frequency. If omitted, auto-detected from dataset 'hz' attribute.",
     )
+    p.add_argument(
+        "--overwrite",
+        action="store_true",
+        help="Overwrite existing dataset. Without this flag, the script will exit if the output already exists.",
+    )
     return p
 
 
-def convert(raw_dir: Path, repo_id: str, fps: int | None) -> None:
+def convert(raw_dir: Path, repo_id: str, fps: int | None, overwrite: bool = False) -> None:
     hdf5_files = sorted(raw_dir.glob("episode_*.hdf5"))
     if not hdf5_files:
         raise FileNotFoundError(f"No episode_*.hdf5 files found in {raw_dir}")
@@ -106,6 +111,11 @@ def convert(raw_dir: Path, repo_id: str, fps: int | None) -> None:
     # ── Clean up existing dataset ─────────────────────────────────────────────
     output_path = HF_LEROBOT_HOME / repo_id
     if output_path.exists():
+        if not overwrite:
+            raise FileExistsError(
+                f"Output already exists: {output_path}\n"
+                "Use --overwrite to replace it."
+            )
         print(f"Removing existing dataset at {output_path}")
         shutil.rmtree(output_path)
 
@@ -150,9 +160,22 @@ def convert(raw_dir: Path, repo_id: str, fps: int | None) -> None:
     )
 
     # ── Process each episode ─────────────────────────────────────────────────
+    required_keys = [
+        "/observations/qpos",
+        "/action",
+        "/observations/images/exterior_image_1_left",
+        "/observations/images/wrist_image_left",
+    ]
+    skipped = []
+
     for ep_path in hdf5_files:
         print(f"  Processing {ep_path.name} …")
         with h5py.File(ep_path, "r") as ep:
+            # ── Validate HDF5 structure ───────────────────────────────────
+            for key in required_keys:
+                if key not in ep:
+                    raise KeyError(f"{ep_path.name}: missing key '{key}'")
+
             # ── Read raw data ─────────────────────────────────────────────
             qpos_deg = ep["/observations/qpos"][:]  # (T, 7) float64
             action_deg = ep["/action"][:]  # (T, 7) float64
@@ -162,7 +185,7 @@ def convert(raw_dir: Path, repo_id: str, fps: int | None) -> None:
 
         n_steps = qpos_deg.shape[0]
         if n_steps == 0:
-            print(f"    Skipping empty episode {ep_path.name}")
+            skipped.append(ep_path.name)
             continue
 
         # ── Unit/convention conversions ───────────────────────────────────
@@ -195,6 +218,8 @@ def convert(raw_dir: Path, repo_id: str, fps: int | None) -> None:
 
     # ── Finalise ─────────────────────────────────────────────────────────────
     dataset.stop_image_writer()
+    if skipped:
+        print(f"\nWarning: skipped {len(skipped)} empty episode(s): {skipped}")
     print(f"\nDataset saved to {output_path}")
 
 
@@ -204,4 +229,5 @@ if __name__ == "__main__":
         raw_dir=args.raw_dir,
         repo_id=args.repo_id,
         fps=args.fps,
+        overwrite=args.overwrite,
     )

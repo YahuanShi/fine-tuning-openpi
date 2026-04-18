@@ -34,7 +34,7 @@ from examples.ur5 import env as _env
 @dataclasses.dataclass
 class Args:
     # Policy server address
-    host: str = "0.0.0.0"
+    host: str = "localhost"
     port: int = 8000
 
     # Task prompt sent to the model at every step

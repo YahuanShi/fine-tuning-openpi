@@ -12,6 +12,7 @@
 #   --config     NAME   Training config name, default pi05_ur5
 #   --skip-convert      Skip conversion step (dataset already converted)
 #   --skip-stats        Skip norm stats step (stats already computed)
+#   --resume            Resume training from last checkpoint (default: overwrite)
 
 set -euo pipefail
 
@@ -27,6 +28,7 @@ FPS=10
 CONFIG_NAME="pi05_ur5"
 SKIP_CONVERT=0
 SKIP_STATS=0
+TRAIN_MODE="--overwrite"
 
 # ── Parse args ────────────────────────────────────────────────────────────────
 while [[ $# -gt 0 ]]; do
@@ -36,8 +38,9 @@ while [[ $# -gt 0 ]]; do
         --exp-name)   EXP_NAME="$2";   shift 2 ;;
         --fps)        FPS="$2";        shift 2 ;;
         --config)     CONFIG_NAME="$2"; shift 2 ;;
-        --skip-convert) SKIP_CONVERT=1; shift ;;
-        --skip-stats)   SKIP_STATS=1;   shift ;;
+        --skip-convert) SKIP_CONVERT=1;           shift ;;
+        --skip-stats)   SKIP_STATS=1;             shift ;;
+        --resume)       TRAIN_MODE="--resume";    shift ;;
         *) echo "Unknown argument: $1"; exit 1 ;;
     esac
 done
@@ -54,6 +57,7 @@ if [[ $SKIP_CONVERT -eq 0 && -z "$RAW_DIR" ]]; then
 fi
 
 export HF_LEROBOT_HOME="$PROJECT_ROOT/dataset/for_training"
+export UR5_REPO_ID="$REPO_ID"
 
 echo "========================================================"
 echo " UR5 Fine-Tuning Pipeline"
@@ -71,7 +75,8 @@ if [[ $SKIP_CONVERT -eq 0 ]]; then
     echo "[1/3] Converting HDF5 → LeRobot dataset..."
     uv run examples/ur5/convert_ur5_data_to_lerobot.py \
         --raw-dir "$RAW_DIR" \
-        --repo-id "$REPO_ID"
+        --repo-id "$REPO_ID" \
+        --overwrite
     echo "[1/3] Done."
 else
     echo "[1/3] Skipped (--skip-convert)."
@@ -93,4 +98,4 @@ echo "[3/3] Starting training (exp: $EXP_NAME)..."
 XLA_PYTHON_CLIENT_MEM_FRACTION=0.95 \
 uv run scripts/train.py "$CONFIG_NAME" \
     --exp-name "$EXP_NAME" \
-    --overwrite
+    $TRAIN_MODE

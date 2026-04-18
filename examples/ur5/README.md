@@ -26,12 +26,15 @@ Raw HDF5 episodes → LeRobot format.
 ```bash
 HF_LEROBOT_HOME=$(pwd)/dataset/for_training uv run examples/ur5/convert_ur5_data_to_lerobot.py \
     --raw-dir dataset/processed/<SUBDIR>/<DATE> \
-    --repo-id ur5_dataset_<DATE>
+    --repo-id ur5_dataset_<DATE> \
+    --overwrite
 ```
 
 - `--fps` is optional: auto-detected from the `hz` attribute in each HDF5 file
 - Output is written to `dataset/for_training/ur5_dataset_<DATE>/`
-- Raw HDF5 and output **must not share the same directory** — the script deletes the output dir before writing
+- Raw HDF5 and output **must not share the same directory**
+- `--overwrite` is required if the output directory already exists; omit it to protect against accidental overwrites
+- Missing HDF5 keys are detected early with a clear error message; empty episodes are reported in a summary at the end
 
 **HDF5 format expected:**
 ```
@@ -47,47 +50,17 @@ The script converts joints from degrees to radians and inverts the gripper conve
 
 ---
 
-## Step 2 — Update Training Config
+## Step 2 — Set Dataset for Training
 
-Edit `src/openpi/training/config.py`, find the relevant TrainConfig and set `repo_id` to the new dataset:
+The `pi05_ur5` config reads the dataset name from the `UR5_REPO_ID` environment variable — **no source code edits required**.
 
-```python
-TrainConfig(
-    name="pi05_ur5",
-    model=pi0_config.Pi0Config(
-        pi05=True,
-        action_horizon=10,
-        discrete_state_input=False,
-        paligemma_variant="gemma_2b_lora",
-        action_expert_variant="gemma_300m_lora",
-    ),
-    data=LeRobotUR5DataConfig(
-        repo_id="ur5_dataset_<DATE>",          # <-- update this
-        base_config=DataConfig(prompt_from_task=True),
-    ),
-    batch_size=32,
-    lr_schedule=_optimizer.CosineDecaySchedule(
-        warmup_steps=1_000,
-        peak_lr=5e-5,
-        decay_steps=20_000,
-        decay_lr=1e-6,
-    ),
-    optimizer=_optimizer.AdamW(clip_gradient_norm=1.0),
-    ema_decay=None,
-    freeze_filter=pi0_config.Pi0Config(
-        paligemma_variant="gemma_2b_lora",
-        action_expert_variant="gemma_300m_lora",
-    ).get_freeze_filter(),
-    weight_loader=weight_loaders.CheckpointWeightLoader(
-        "gs://openpi-assets/checkpoints/pi05_base/params"
-    ),
-    num_train_steps=20_000,
-    save_interval=2000,
-    keep_period=5000,
-)
+```bash
+export UR5_REPO_ID=ur5_dataset_<DATE>
 ```
 
-**Notes:**
+This must be set before running `compute_norm_stats.py` and `train.py`. `train_pipeline.sh` sets it automatically from `--repo-id`.
+
+**Config notes:**
 - LoRA is required — full fine-tuning exceeds 48GB on RTX 6000
 - `ema_decay=None` — EMA adds ~12.5GB and causes OOM
 - `batch_size=32` — stable at ~41GB VRAM
@@ -98,7 +71,9 @@ TrainConfig(
 ## Step 3 — Compute Norm Stats
 
 ```bash
-HF_LEROBOT_HOME=$(pwd)/dataset/for_training uv run scripts/compute_norm_stats.py --config-name pi05_ur5
+UR5_REPO_ID=ur5_dataset_<DATE> \
+HF_LEROBOT_HOME=$(pwd)/dataset/for_training \
+uv run scripts/compute_norm_stats.py --config-name pi05_ur5
 ```
 
 Output is written to `assets/pi05_ur5/ur5_dataset_<DATE>/norm_stats.json`.
@@ -108,7 +83,9 @@ Output is written to `assets/pi05_ur5/ur5_dataset_<DATE>/norm_stats.json`.
 ## Step 4 — Train
 
 ```bash
-HF_LEROBOT_HOME=$(pwd)/dataset/for_training XLA_PYTHON_CLIENT_MEM_FRACTION=0.95 \
+UR5_REPO_ID=ur5_dataset_<DATE> \
+HF_LEROBOT_HOME=$(pwd)/dataset/for_training \
+XLA_PYTHON_CLIENT_MEM_FRACTION=0.95 \
 uv run scripts/train.py pi05_ur5 \
     --exp-name ur5_pick_place_<VERSION> \
     --overwrite
@@ -116,13 +93,16 @@ uv run scripts/train.py pi05_ur5 \
 
 To resume an interrupted training:
 ```bash
-HF_LEROBOT_HOME=$(pwd)/dataset/for_training XLA_PYTHON_CLIENT_MEM_FRACTION=0.95 \
+UR5_REPO_ID=ur5_dataset_<DATE> \
+HF_LEROBOT_HOME=$(pwd)/dataset/for_training \
+XLA_PYTHON_CLIENT_MEM_FRACTION=0.95 \
 uv run scripts/train.py pi05_ur5 \
     --exp-name ur5_pick_place_<VERSION> \
     --resume
 ```
 
 Checkpoints are saved to `checkpoints/pi05_ur5/ur5_pick_place_<VERSION>/<STEP>/`.
+Each checkpoint saves `assets/metadata.json` recording the `repo_id` it was trained on.
 
 **Convergence indicators:**
 - `loss` stabilises around `0.0006–0.002`
@@ -137,32 +117,27 @@ Checkpoints are saved to `checkpoints/pi05_ur5/ur5_pick_place_<VERSION>/<STEP>/`
     --exp-name ur5_pick_place_<VERSION>
 ```
 
+To resume via the pipeline (skip convert and norm stats):
+```bash
+./examples/ur5/train_pipeline.sh \
+    --repo-id ur5_dataset_<DATE> \
+    --exp-name ur5_pick_place_<VERSION> \
+    --resume --skip-convert --skip-stats
+```
+
 ---
 
 ## Step 5 — Serve Policy
 
-Start the policy server (Terminal 1):
+Start the policy server (Terminal 1) using the helper script — it auto-detects the correct config from the checkpoint's `assets/metadata.json`:
 
 ```bash
-uv run scripts/serve_policy.py policy:checkpoint \
-    --policy.config pi05_ur5 \
-    --policy.dir checkpoints/pi05_ur5/ur5_pick_place_<VERSION>/<STEP>
+./examples/ur5/serve.sh checkpoints/pi05_ur5/ur5_pick_place_<VERSION>/<STEP>
 ```
 
-First inference takes ~60s (JAX JIT compilation). Subsequent inferences take ~300–500ms.
+The script prints the resolved config and repo_id before starting. First inference takes ~60s (JAX JIT compilation). Subsequent inferences take ~300–500ms.
 
-**Config ↔ Checkpoint mapping** (always verify with `ls checkpoints/.../assets/`):
-| Checkpoint path | Config |
-|---|---|
-| `checkpoints/pi05_ur5/...` | `pi05_ur5` |
-| `checkpoints/pi05_ur5_assembly/...` | `pi05_ur5_assembly` |
-| `checkpoints/pi05_ur5_pnpa/...` | `pi05_ur5_pnpa` |
-
-**If norm stats mismatch error occurs**, copy correct stats into checkpoint:
-```bash
-cp -r checkpoints/pi05_ur5/<EXP>/<STEP>/assets/<ORIGINAL_DATASET> \
-       checkpoints/pi05_ur5/<EXP>/<STEP>/assets/<CURRENT_REPO_ID>
-```
+For old checkpoints created before `metadata.json` was introduced, `serve.sh` falls back to inferring the config from the checkpoint path name.
 
 ---
 
@@ -205,5 +180,4 @@ Key parameters in `main.py`:
 
 - **Motion stops every ~1s:** Synchronous inference — robot waits for next action chunk. Irreducible without async prefetching.
 - **No validation during training:** Only train loss and grad_norm are logged. Evaluate by running inference on hardware.
-- **Norm stats must match checkpoint:** Always ensure `config.repo_id` matches the dataset the checkpoint was trained on.
 - **10Hz recommended:** Even for 20Hz-collected datasets, 10Hz inference gives smoother motion (less frequent re-query pauses).
