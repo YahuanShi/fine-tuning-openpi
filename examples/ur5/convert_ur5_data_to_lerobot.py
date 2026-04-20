@@ -94,7 +94,7 @@ def build_parser() -> argparse.ArgumentParser:
     return p
 
 
-def convert(raw_dir: Path, repo_id: str, fps: int | None, overwrite: bool = False) -> None:
+def convert(raw_dir: Path, repo_id: str, fps: int | None, *, overwrite: bool = False) -> None:
     hdf5_files = sorted(raw_dir.glob("episode_*.hdf5"))
     if not hdf5_files:
         raise FileNotFoundError(f"No episode_*.hdf5 files found in {raw_dir}")
@@ -112,10 +112,7 @@ def convert(raw_dir: Path, repo_id: str, fps: int | None, overwrite: bool = Fals
     output_path = HF_LEROBOT_HOME / repo_id
     if output_path.exists():
         if not overwrite:
-            raise FileExistsError(
-                f"Output already exists: {output_path}\n"
-                "Use --overwrite to replace it."
-            )
+            raise FileExistsError(f"Output already exists: {output_path}\nUse --overwrite to replace it.")
         print(f"Removing existing dataset at {output_path}")
         shutil.rmtree(output_path)
 
