@@ -1,4 +1,4 @@
-# Push Guide — Fine-Tuning-Pi0.5
+# Push Guide — fine-tuning-openpi
 
 Instruction file for Claude to assist with git operations in this repo.
 
@@ -84,7 +84,7 @@ git push
 ## Project Structure
 
 ```
-Fine-Tuning-Pi0.5/
+fine-tuning-openpi/
 ├── dataset/
 │   ├── raw/                        # original HDF5 recordings from episode_recorder.py
 │   ├── processed/                  # pipeline outputs

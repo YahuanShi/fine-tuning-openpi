@@ -1,6 +1,6 @@
 # Git 主仓库 + 子模块管理指南
 
-**主仓库：** `Fine-Tuning-Pi0.5`
+**主仓库：** `fine-tuning-openpi`
 
 **子模块列表：**
 - `teleoperation` → `git@github.com:YahuanShi/teleoperation.git`
@@ -11,8 +11,8 @@
 ## 1. 克隆主仓库（含子模块）
 
 ```bash
-git clone git@github.com:YahuanShi/Fine-Tuning-Pi0.5.git
-cd Fine-Tuning-Pi0.5
+git clone git@github.com:YahuanShi/fine-tuning-openpi.git
+cd fine-tuning-openpi
 
 # 初始化并更新子模块
 git submodule update --init --recursive
@@ -108,7 +108,7 @@ git push origin main
 **rsync 备份（排除大数据目录）：**
 ```bash
 rsync -av --exclude=dataset --exclude=checkpoints --exclude=wandb \
-  Fine-Tuning-Pi0.5/ Fine-Tuning-Pi0.5_backup/
+  fine-tuning-openpi/ fine-tuning-openpi_backup/
 ```
 
 **Git bundle 备份：**
