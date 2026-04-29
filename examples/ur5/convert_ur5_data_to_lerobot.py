@@ -7,16 +7,17 @@ Source format (written by teleoperation/data_collection/episode_recorder.py):
     ├── attrs: sim, prompt, task, hz, n_steps, timestamp
     ├── observations/
     │   ├── qpos    (T, 7) float64  [joints_degx6, gripper 0=closed/1=open]
+    │   ├── qvel    (T, 7) float64  [joint vel deg/s x6, 0.0 placeholder]
     │   └── images/
-    │       ├── exterior_image_1_left  (T, 224, 224, 3) uint8 RGB
-    │       └── wrist_image_left       (T, 224, 224, 3) uint8 RGB
+    │       ├── exterior_image_1_left  (T, H, W, 3) uint8 RGB  (any square resolution)
+    │       └── wrist_image_left       (T, H, W, 3) uint8 RGB
     └── action      (T, 7) float64  [joints_degx6, gripper 0=closed/1=open]
 
 Target LeRobot dataset features (matching the UR5 policy transforms in
 examples/ur5/README.md):
 
-    base_rgb     (224, 224, 3) uint8    exterior camera RGB
-    wrist_rgb    (224, 224, 3) uint8    wrist camera RGB
+    base_rgb     (H, W, 3) uint8    exterior camera RGB  (H×W auto-detected from source)
+    wrist_rgb    (H, W, 3) uint8    wrist camera RGB
     joints       (6,)          float32  joint angles in radians
     gripper      (1,)          float32  gripper [0.0=open, 1.0=closed]
     actions      (7,)          float32  [joints_radx6, gripper_pi05]
@@ -100,13 +101,15 @@ def convert(raw_dir: Path, repo_id: str, fps: int | None, *, overwrite: bool = F
         raise FileNotFoundError(f"No episode_*.hdf5 files found in {raw_dir}")
     print(f"Found {len(hdf5_files)} episode(s) in {raw_dir}")
 
-    # Auto-detect fps from first episode if not specified
-    if fps is None:
-        with h5py.File(hdf5_files[0], "r") as f:
+    # Auto-detect fps and image shape from first episode
+    with h5py.File(hdf5_files[0], "r") as f:
+        if fps is None:
             fps = int(f.attrs.get("hz", DEFAULT_FPS))
-        print(f"Auto-detected fps={fps} from dataset attrs")
-    else:
-        print(f"Using fps={fps}")
+            print(f"Auto-detected fps={fps} from dataset attrs")
+        else:
+            print(f"Using fps={fps}")
+        img_shape = f["/observations/images/exterior_image_1_left"].shape[1:]  # (H, W, 3)
+    print(f"Auto-detected image shape={img_shape} from dataset")
 
     # ── Clean up existing dataset ─────────────────────────────────────────────
     output_path = HF_LEROBOT_HOME / repo_id
@@ -119,6 +122,8 @@ def convert(raw_dir: Path, repo_id: str, fps: int | None, *, overwrite: bool = F
     # ── Create empty LeRobot dataset ─────────────────────────────────────────
     # Feature names match what LeRobotUR5DataConfig's RepackTransform expects
     # (see examples/ur5/README.md).
+    # Image shape is auto-detected from the first episode file — training pipeline
+    # applies ResizeImages(224, 224) regardless of stored resolution.
     dataset = LeRobotDataset.create(
         repo_id=repo_id,
         robot_type="ur5e",
@@ -126,12 +131,12 @@ def convert(raw_dir: Path, repo_id: str, fps: int | None, *, overwrite: bool = F
         features={
             "base_rgb": {
                 "dtype": "image",
-                "shape": (224, 224, 3),
+                "shape": img_shape,
                 "names": ["height", "width", "channel"],
             },
             "wrist_rgb": {
                 "dtype": "image",
-                "shape": (224, 224, 3),
+                "shape": img_shape,
                 "names": ["height", "width", "channel"],
             },
             # Stored separately so UR5Inputs can concatenate them.

@@ -172,3 +172,5 @@ training_data/
 launch.md
 train_sequential.sh
 VLA-Data-Pipeline-main
+act-main/
+diffusion_policy-main/

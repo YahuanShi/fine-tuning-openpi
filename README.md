@@ -134,7 +134,7 @@ Policy server (Step 4) must be running first. Both cannot share the GPU.
 ## Directory Structure
 
 ```
-Fine-Tuning-Pi0.5/
+fine-tuning-openpi/
 ├── examples/ur5/           # UR5 scripts: convert, env, main, serve.sh, train_pipeline.sh
 ├── src/openpi/             # Core model library (JAX)
 ├── scripts/                # train.py, serve_policy.py, compute_norm_stats.py
