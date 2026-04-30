@@ -1,6 +1,6 @@
-# Project: UR5 Pi0.5 Fine-Tuning
+# Development Guide — UR5 Pi0.5 Fine-Tuning
 
-Claude Code rules for this project. For operation commands and parameters, see `UR5_Pi05_Manual.md`. For git/push workflow, see `PUSH_GUIDE.md`.
+Project conventions and rules. For operation commands and parameters, see `examples/ur5/README.md`.
 
 ---
 
@@ -98,9 +98,3 @@ assets/pi05_ur5/<repo_id>/norm_stats.json  ← global norm stats
 
 ### Camera frame drop crashes episode
 **Status:** Handled — `env.py` retries up to 3 times with 500ms timeout each.
-
----
-
-## Commit Rules
-
-See `PUSH_GUIDE.md` for the full workflow. Key rule: **never add `Co-Authored-By` trailer**.

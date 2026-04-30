@@ -156,6 +156,6 @@ fine-tuning-openpi/
 
 - [examples/ur5/README.md](examples/ur5/README.md) — detailed pipeline reference
 - [teleoperation/README.md](teleoperation/README.md) — teleoperation setup
-- [CLAUDE.md](CLAUDE.md) — project conventions and rules for Claude Code
+- [DEVELOPMENT.md](DEVELOPMENT.md) — project development conventions and known pitfalls
 - [docs/norm_stats.md](docs/norm_stats.md) — norm stats reload guide
 - [docs/remote_inference.md](docs/remote_inference.md) — remote inference setup
