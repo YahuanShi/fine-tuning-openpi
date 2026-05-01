@@ -1,6 +1,11 @@
 # Data directories.
 assets/
 checkpoints/
+
+# Symlinked shared repos (managed as standalone in Projects/)
+data_processing
+teleoperation
+dataset
 data/
 wandb/
 processed_data/
