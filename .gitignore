@@ -2,9 +2,7 @@
 assets/
 checkpoints/
 
-# Symlinked shared repos (managed as standalone in Projects/)
-data_processing
-teleoperation
+# Symlinked local paths (not tracked)
 dataset
 data/
 wandb/
