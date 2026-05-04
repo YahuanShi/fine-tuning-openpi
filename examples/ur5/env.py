@@ -245,13 +245,15 @@ class UR5Environment(_environment.Environment):
         with contextlib.suppress(Exception):
             self._rtde_c.servoStop()
         time.sleep(0.2)
-        log.info("[UR5] Returning to home position...")
-        self._rtde_c.moveJ(HOME_RAD.tolist(), speed=0.3, acceleration=0.3)
-        self._last_cmd_rad = HOME_RAD.copy()
         if self._is_first_reset:
+            log.info("[UR5] First reset — moving to home position...")
+            self._rtde_c.moveJ(HOME_RAD.tolist(), speed=0.5, acceleration=0.5)
+            self._last_cmd_rad = HOME_RAD.copy()
             self._gripper.home()
             self._is_first_reset = False
         else:
+            log.info("[UR5] In-place reset — opening gripper...")
+            self._last_cmd_rad = np.array(self._rtde_r.getActualQ(), dtype=np.float32)[:6]
             self._gripper.move_to_pos(GRIPPER_MAX_MM)
         self._last_gripper_open = True
         log.info("[UR5] Ready.")
