@@ -6,17 +6,18 @@ Source format (written by teleoperation/data_collection/episode_recorder.py):
     episode_N.hdf5
     ├── attrs: sim, prompt, task, hz, n_steps, timestamp
     ├── observations/
-    │   ├── qpos    (T, 7) float64  [joints_degx6, gripper 0=closed/1=open]
-    │   ├── qvel    (T, 7) float64  [joint vel deg/s x6, 0.0 placeholder]
+    │   ├── qpos      (T, 7) float64  [joints_degx6, gripper 0=closed/1=open]
+    │   ├── qvel      (T, 7) float64  [joint vel deg/s x6, 0.0 placeholder]
+    │   ├── eef_pose  (T, 6) float64  [x,y,z,rx,ry,rz] metres/rad  ← ignored here
     │   └── images/
     │       ├── exterior_image_1_left  (T, H, W, 3) uint8 RGB  (any square resolution)
     │       └── wrist_image_left       (T, H, W, 3) uint8 RGB
-    └── action      (T, 7) float64  [joints_degx6, gripper 0=closed/1=open]
+    └── action        (T, 7) float64  [joints_degx6, gripper 0=closed/1=open]
 
 Target LeRobot dataset features (matching the UR5 policy transforms in
 examples/ur5/README.md):
 
-    base_rgb     (H, W, 3) uint8    exterior camera RGB  (H×W auto-detected from source)
+    base_rgb     (H, W, 3) uint8    exterior camera RGB  (HxW auto-detected from source)
     wrist_rgb    (H, W, 3) uint8    wrist camera RGB
     joints       (6,)          float32  joint angles in radians
     gripper      (1,)          float32  gripper [0.0=open, 1.0=closed]
