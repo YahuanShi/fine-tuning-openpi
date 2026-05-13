@@ -1,0 +1,46 @@
+# Training orchestration. Driven by scripts/train_oneclick.sh.
+#
+# Manual invocation:
+#   docker compose -f scripts/docker/compose.train.yml \
+#                  --env-file scripts/docker/.env.train \
+#                  run --rm trainer \
+#                  uv run scripts/train.py pi05_ur5 --exp-name <name> --overwrite
+
+services:
+  trainer:
+    image: openpi_trainer
+    build:
+      context: ../..
+      dockerfile: scripts/docker/train.Dockerfile
+    init: true
+    tty: true
+    stdin_open: true
+    network_mode: host
+    working_dir: /app
+    shm_size: "16gb"
+    ulimits:
+      memlock: -1
+      stack: 67108864
+    volumes:
+      # Project source — live bind so code edits don't require rebuild.
+      - ../..:/app
+      # Dataset / checkpoints — frequently changing, often on separate disks.
+      - ${DATASET_PATH:-../../dataset}:/app/dataset
+      - ${CHECKPOINTS_PATH:-../../checkpoints}:/app/checkpoints
+      # Caches — survive container teardown.
+      - ${UV_CACHE_PATH:-~/.cache/uv}:/root/.cache/uv
+      - ${HF_CACHE_PATH:-~/.cache/huggingface}:/root/.cache/huggingface
+    environment:
+      - UR5_REPO_ID
+      - HF_LEROBOT_HOME=/app/dataset/for_training
+      - XLA_PYTHON_CLIENT_MEM_FRACTION=${XLA_PYTHON_CLIENT_MEM_FRACTION:-0.95}
+      - WANDB_API_KEY
+      - HF_TOKEN
+      - IS_DOCKER=true
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
