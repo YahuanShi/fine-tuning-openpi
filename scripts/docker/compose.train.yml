@@ -37,6 +37,7 @@ services:
       - WANDB_API_KEY
       - HF_TOKEN
       - IS_DOCKER=true
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
     deploy:
       resources:
         reservations:
