@@ -252,9 +252,8 @@ class UR5Environment(_environment.Environment):
             self._gripper.home()
             self._is_first_reset = False
         else:
-            log.info("[UR5] In-place reset — opening gripper...")
-            self._last_cmd_rad = np.array(self._rtde_r.getActualQ(), dtype=np.float32)[:6]
-            self._gripper.move_to_pos(GRIPPER_MAX_MM)
+            log.info("[UR5] In-place reset — disabled for comparison.")
+            return
         self._last_gripper_open = True
         log.info("[UR5] Ready.")
 
