@@ -173,8 +173,8 @@ cython_debug/
 #.idea/
 dataset/
 training_data/
-launch.md
-train_sequential.sh
-VLA-Data-Pipeline-main
-act-main/
-diffusion_policy-main/
+
+# Demo: keep only 4x speed versions, exclude raw large videos and processing script
+Demo/*.mp4
+!Demo/4x_*.mp4
+Demo/make_4x.sh

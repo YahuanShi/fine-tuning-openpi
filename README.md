@@ -5,22 +5,24 @@ Forked from [Physical-Intelligence/openpi](https://github.com/Physical-Intellige
 
 ## Demo
 
+> All videos are played at **4× speed**. The apparent choppiness is due to time compression of 30fps footage (~7.5 effective fps after 4× acceleration) — not inference latency. The robot executes actions smoothly at 10Hz in real operation.
+
 <table>
   <tr>
-    <th align="center">Pick &amp; Place — Variant 1</th>
-    <th align="center">Pick &amp; Place — Variant 2</th>
-    <th align="center">Pick &amp; Place — Variant 3</th>
+    <th align="center">Pick &amp; Place — White Cube</th>
+    <th align="center">Pick &amp; Place — White Cylinder</th>
+    <th align="center">Pick &amp; Place — White Box</th>
   </tr>
   <tr>
-    <td align="center"><video src="Demo/pick_place_1.video" width="280" alt="pick-place-1"/></td>
-    <td align="center"><video src="Demo/pick_place_2.video" width="280" alt="pick-place-2"/></td>
-    <td align="center"><video src="Demo/pick_place_3.video" width="280" alt="pick-place-3"/></td>
+    <td align="center"><video src="Demo/4x_Pick%20and%20Place%20White%20Cube.mp4" width="280" autoplay loop muted playsinline></video></td>
+    <td align="center"><video src="Demo/4x_Pick%20and%20Place%20White%20Cylinder.mp4" width="280" autoplay loop muted playsinline></video></td>
+    <td align="center"><video src="Demo/4x_Place%20and%20Place%20White%20Box.mp4" width="280" autoplay loop muted playsinline></video></td>
   </tr>
   <tr>
     <th align="center" colspan="3">Wipe Board</th>
   </tr>
   <tr>
-    <td align="center" colspan="3"><img src="Demo/wipe_board.gif" width="560" alt="wipe-board"/></td>
+    <td align="center" colspan="3"><video src="Demo/4x_Wiping_1.mp4" width="560" autoplay loop muted playsinline></video></td>
   </tr>
 </table>
 
@@ -47,7 +49,7 @@ flowchart LR
 | Metric | Value |
 |--------|-------|
 | Training steps to convergence | ~20k–33k steps |
-| Wall-clock training time | ~45–60h on RTX 6000 48GB / 6h on H100*2 |
+| Wall-clock training time | ~35–60h on RTX 6000 48GB / ～2h-6h on H100*2 |
 | Final training loss | 0.0006–0.002 |
 | Gradient norm at convergence | 0.01–0.05 |
 | Inference latency per action chunk | ~300–500ms |
@@ -118,7 +120,7 @@ bash uarm/scripts/UR5/run_ur5_nodes.sh
 Episodes are saved as `episode_N.hdf5` under `dataset/raw/`.
 
 
-### 3. Train (convert → norm stats → train)
+### 2. Train (convert → norm stats → train)
 
 One-command pipeline:
 
@@ -133,7 +135,7 @@ Optional flags: `--skip-convert`, `--skip-stats`, `--resume`, `--fps 20`, `--con
 
 Or run steps manually — see [examples/ur5/README.md](examples/ur5/README.md).
 
-### 4. Serve Policy
+### 3. Serve Policy
 
 ```bash
 ./examples/ur5/serve.sh checkpoints/pi05_ur5/<EXP_NAME>/<STEP>
@@ -142,14 +144,14 @@ Or run steps manually — see [examples/ur5/README.md](examples/ur5/README.md).
 `serve.sh` reads `assets/metadata.json` to resolve the correct config automatically.  
 First inference takes ~60s (JAX JIT). Subsequent calls: ~300–500ms.
 
-### 5. Run Inference on Robot
+### 4. Run Inference on Robot
 
 ```bash
 PYTHONPATH=. uv run examples/ur5/main.py \
     --prompt "pick yellow cube and place it into red box"
 ```
 
-Policy server (Step 4) must be running first.
+Policy server (Step 3) must be running first.
 
 ---
 
@@ -249,7 +251,9 @@ fine-tuning-openpi/
 
 - [examples/ur5/README.md](examples/ur5/README.md) — detailed pipeline reference
 - [docs/TRAIN_DEPLOY.md](docs/TRAIN_DEPLOY.md) — deploy training on a new server (Docker)
+- [docs/new_server_training_setup.md](docs/new_server_training_setup.md) — step-by-step new server setup (Chinese)
 - [docs/data_pipeline_guide.md](docs/data_pipeline_guide.md) — data format and model input deep dive (Chinese)
+- [docs/training_inference_guide.md](docs/training_inference_guide.md) — Flow Matching loss and ODE inference deep dive (Chinese)
 - [teleoperation/README.md](teleoperation/README.md) — teleoperation setup
 - [DEVELOPMENT.md](DEVELOPMENT.md) — conventions and known pitfalls
 - [docs/remote_inference.md](docs/remote_inference.md) — remote inference setup
