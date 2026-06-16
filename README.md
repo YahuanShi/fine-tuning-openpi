@@ -14,15 +14,15 @@ Forked from [Physical-Intelligence/openpi](https://github.com/Physical-Intellige
     <th align="center">Pick &amp; Place — White Box</th>
   </tr>
   <tr>
-    <td align="center"><video src="Demo/4x_Pick%20and%20Place%20White%20Cube.mp4" width="280" autoplay loop muted playsinline></video></td>
-    <td align="center"><video src="Demo/4x_Pick%20and%20Place%20White%20Cylinder.mp4" width="280" autoplay loop muted playsinline></video></td>
-    <td align="center"><video src="Demo/4x_Place%20and%20Place%20White%20Box.mp4" width="280" autoplay loop muted playsinline></video></td>
+    <td align="center"><img src="Demo/pick_place_cube.webp" width="280" alt="pick-place-cube"/></td>
+    <td align="center"><img src="Demo/pick_place_cylinder.webp" width="280" alt="pick-place-cylinder"/></td>
+    <td align="center"><img src="Demo/pick_place_box.webp" width="280" alt="pick-place-box"/></td>
   </tr>
   <tr>
     <th align="center" colspan="3">Wipe Board</th>
   </tr>
   <tr>
-    <td align="center" colspan="3"><video src="Demo/4x_Wiping_1.mp4" width="560" autoplay loop muted playsinline></video></td>
+    <td align="center" colspan="3"><img src="Demo/wipe_board.webp" width="560" alt="wipe-board"/></td>
   </tr>
 </table>
 

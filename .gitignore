@@ -174,7 +174,8 @@ cython_debug/
 dataset/
 training_data/
 
-# Demo: keep only 4x speed versions, exclude raw large videos and processing script
+# Demo: exclude raw large videos and processing script; keep 4x MP4s and WebPs
 Demo/*.mp4
 !Demo/4x_*.mp4
 Demo/make_4x.sh
+Demo/test_*.webp
