@@ -35,11 +35,10 @@ Complete end-to-end pipeline: collect demonstrations via teleoperation on a real
 ```mermaid
 flowchart LR
     A["Uarm Master Arm\n(teleoperation)"] -->|HDF5 episodes\n20Hz| B["Raw Data\ndataset/raw/"]
-    B -->|pipeline.sh\ntrim & smooth| C["Processed HDF5"]
-    C -->|convert script\ndeg→rad · gripper invert| D["LeRobot Format\ndataset/for_training/"]
-    D -->|norm stats + train| E["Pi0.5 Checkpoint\nLoRA · JAX · RTX 6000"]
-    E -->|serve.sh| F["Policy Server\ngRPC :8000"]
-    F -->|action chunks\n10Hz| G["UR3e Robot\nreal-world execution"]
+    B -->|convert script\ndeg→rad · gripper invert| C["LeRobot Format\ndataset/for_training/"]
+    C -->|norm stats + train| D["Pi0.5 Checkpoint\nLoRA · JAX · RTX 6000"]
+    D -->|serve.sh| E["Policy Server\ngRPC :8000"]
+    E -->|action chunks\n10Hz| F["UR3e Robot\nreal-world execution"]
 ```
 
 ---
